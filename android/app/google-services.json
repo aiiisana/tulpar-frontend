@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "900985734708",
+    "project_id": "tulpar-19a6c",
+    "storage_bucket": "tulpar-19a6c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:900985734708:android:cfde5640105e498adbac61",
+        "android_client_info": {
+          "package_name": "com.example.tulpar_front"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "900985734708-0ofs0hb666d7lkq2ia45ucj7qo1gu2us.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9PI8R0PJ83IFgQpimCJwoZEllZ5WlNw8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "900985734708-0ofs0hb666d7lkq2ia45ucj7qo1gu2us.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "900985734708-0marnc3vng0rsmcoe2dknjrmoq8s9du8.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.tulparFront"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
