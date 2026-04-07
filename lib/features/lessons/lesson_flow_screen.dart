@@ -109,50 +109,33 @@ class _LessonFlowScreenState extends State<LessonFlowScreen> {
 
   List<_LessonStepSpec> _buildStepsForLesson(int lessonIndex) {
     final kw = _keywordForLesson(lessonIndex);
-    final odd = lessonIndex.isOdd;
 
-    final steps = <_LessonStepSpec>[
-      _LessonStepSpec(
-        kind: _StepKind.listenIntro,
-        title: lessonIndex == 1 ? 'Прослушай несколько раз' : 'Урок: «${widget.title}»',
-        subtitle: lessonIndex == 1 ? 'Послушай, как звучит казахский язык' : widget.subtitleKk,
-      ),
+    // Ровно 3 вопроса + экран завершения
+    return [
+      // Вопрос 1: выбор правильного слова
       _LessonStepSpec(
         kind: _StepKind.mcqListen,
-        title: 'Выбери правильный ответ',
-        subtitle: lessonIndex == 1 ? 'Прослушай аудио и выбери то, что ты слышишь' : 'Выбери подходящий вариант.',
+        title: 'Выбери правильный вариант',
+        subtitle: 'Какое слово переводится как «${widget.title}»?',
         options: _mcqOptionsForLesson(lessonIndex),
         correctIndex: 0,
       ),
+      // Вопрос 2: собери слово по буквам
       _LessonStepSpec(
-        kind: _StepKind.repeat,
-        title: 'Повтори',
-        subtitle: 'Повтори «${widget.subtitleKk}» вслух',
+        kind: _StepKind.letters,
+        title: 'Собери слово по буквам',
+        subtitle: 'Расставь буквы в правильном порядке',
+        expectedWord: kw,
       ),
+      // Вопрос 3: напиши слово
+      _LessonStepSpec(
+        kind: _StepKind.typeWord,
+        title: 'Напиши слово',
+        subtitle: 'Введи казахское слово для «${widget.title}»',
+        expectedWord: kw,
+      ),
+      const _LessonStepSpec(kind: _StepKind.completion),
     ];
-
-    if (odd) {
-      steps.add(
-        _LessonStepSpec(
-          kind: _StepKind.letters,
-          title: 'Собери слово по буквам',
-          subtitle: 'Расставь буквы в правильном порядке',
-          expectedWord: kw,
-        ),
-      );
-    } else {
-      steps.add(
-        _LessonStepSpec(
-          kind: _StepKind.typeWord,
-          title: 'Напиши слово',
-          subtitle: 'Введи ключевое слово урока',
-          expectedWord: kw,
-        ),
-      );
-    }
-
-    steps.add(const _LessonStepSpec(kind: _StepKind.completion));
-    return steps;
   }
 
   void _goNext() {

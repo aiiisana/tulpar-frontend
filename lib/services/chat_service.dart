@@ -51,9 +51,15 @@ class ChatService {
         '/chat/message',
         data: {'message': text},
       );
-      return ChatMessageModel.fromJson(response.data as Map<String, dynamic>);
-    } catch (e) {
-      debugPrint('Error sending chat message: $e');
+      final data = response.data;
+      if (data == null) {
+        debugPrint('[ChatService] sendMessage: response.data is null');
+        return null;
+      }
+      return ChatMessageModel.fromJson(data as Map<String, dynamic>);
+    } catch (e, stack) {
+      debugPrint('[ChatService] sendMessage failed: $e');
+      debugPrint('[ChatService] $stack');
       return null;
     }
   }

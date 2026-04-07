@@ -1,16 +1,90 @@
 import 'package:flutter/material.dart';
 import '../app/app_storage.dart';
 import '../app/theme.dart';
+import '../features/lesson/exercise_screen.dart';
 import '../features/lessons/lesson_flow_screen.dart';
 import '../models/level_map_node.dart';
+import '../services/lesson_service.dart';
 
-const double kLevelMapWidth = 420;
-const double kLevelMapHeight = 560;
+// ── Canvas constants ──────────────────────────────────────────────────────────
 
+const double kLevelMapWidth   = 420;
 const double kMapCanvasPadding = 28;
+const double kMapCanvasWidth  = kLevelMapWidth + kMapCanvasPadding * 2;
 
-const double kMapCanvasWidth = kLevelMapWidth + kMapCanvasPadding * 2;
-const double kMapCanvasHeight = kLevelMapHeight + kMapCanvasPadding * 2;
+const double _kNodeStep = 130.0; // вертикальный шаг между пузырьками
+const double _kFirstY  = 68.0;  // Y первого пузырька
+const double _kBottomMargin = 80.0;
+
+// ── Internal data model ───────────────────────────────────────────────────────
+
+class _MapLesson {
+  /// null = оффлайн-фоллбэк, non-null = реальный урок с бэкенда
+  final String? backendId;
+  final int fallbackIndex;   // используется только при backendId == null
+  final String title;
+  final String subtitleKk;
+  final String description;
+  final bool unlocked;
+
+  const _MapLesson({
+    this.backendId,
+    required this.fallbackIndex,
+    required this.title,
+    required this.subtitleKk,
+    required this.description,
+    required this.unlocked,
+  });
+
+  bool get isBackend => backendId != null;
+}
+
+// ── Fallback 3 lessons ────────────────────────────────────────────────────────
+
+const List<LevelMapNode> _kFallback = [
+  LevelMapNode(
+    lessonIndex: 1,
+    title: 'Привет!',
+    subtitleKk: 'Сәлем!',
+    description: 'Первые фразы приветствия и прощания.',
+    center: Offset.zero, // пересчитывается динамически
+  ),
+  LevelMapNode(
+    lessonIndex: 2,
+    title: 'Знакомство',
+    subtitleKk: 'Танысу',
+    description: 'Как представиться, спросить имя.',
+    center: Offset.zero,
+  ),
+  LevelMapNode(
+    lessonIndex: 3,
+    title: 'Семья',
+    subtitleKk: 'Отбасы',
+    description: 'Слова про семью: әке, ана, аға.',
+    center: Offset.zero,
+  ),
+];
+
+// ── Position helpers ──────────────────────────────────────────────────────────
+
+/// Зигзаг-позиции: чётные — правее, нечётные — левее
+Offset _positionFor(int i) {
+  final x = (i % 2 == 0)
+      ? kLevelMapWidth * 0.58
+      : kLevelMapWidth * 0.30;
+  final y = _kFirstY + i * _kNodeStep;
+  return Offset(x, y);
+}
+
+double _canvasHeight(int count) {
+  if (count <= 0) return _kFirstY + _kBottomMargin;
+  return _kFirstY + (count - 1) * _kNodeStep + _kBottomMargin;
+}
+
+List<Offset> _centers(int count) =>
+    List.generate(count, (i) => _positionFor(i));
+
+// ── Path painter ──────────────────────────────────────────────────────────────
 
 enum _SegmentKind { locked, next, completed }
 
@@ -34,7 +108,6 @@ class _LevelPathPainter extends CustomPainter {
     if (points.length < 2) return;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-
     for (var s = 0; s < points.length - 1; s++) {
       final path = _segmentPath(points[s], points[s + 1], s);
       final kind = s < kinds.length ? kinds[s] : _SegmentKind.locked;
@@ -44,7 +117,7 @@ class _LevelPathPainter extends CustomPainter {
       switch (kind) {
         case _SegmentKind.locked:
           main = const Color(0xFFB8C4BC).withOpacity(0.55);
-          w = 7;
+          w = 6;
         case _SegmentKind.next:
           main = const Color(0xFFC9E85C);
           w = 11;
@@ -54,109 +127,51 @@ class _LevelPathPainter extends CustomPainter {
       }
 
       if (kind == _SegmentKind.next) {
-        final glow = Paint()
-          ..color = const Color(0xFFE8F5A0).withOpacity(0.85)
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFFE8F5A0).withOpacity(0.85)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = w + 6
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
+        );
+      }
+
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = main
           ..style = PaintingStyle.stroke
-          ..strokeWidth = w + 6
+          ..strokeWidth = w
           ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-        canvas.drawPath(path, glow);
-      }
-
-      final line = Paint()
-        ..color = main
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-
-      if (kind == _SegmentKind.locked) {
-        line.strokeWidth = 6;
-      }
-
-      canvas.drawPath(path, line);
+          ..strokeJoin = StrokeJoin.round,
+      );
     }
-
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _LevelPathPainter oldDelegate) {
-    return oldDelegate.points != points || oldDelegate.kinds != kinds;
-  }
+  bool shouldRepaint(covariant _LevelPathPainter old) =>
+      old.points != points || old.kinds != kinds;
 }
+
+// ── HomeLevelMap widget ───────────────────────────────────────────────────────
 
 class HomeLevelMap extends StatefulWidget {
   const HomeLevelMap({super.key});
 
-  static const lessons = <LevelMapNode>[
-    LevelMapNode(
-      lessonIndex: 1,
-      title: 'Привет!',
-      subtitleKk: 'Сәлем!',
-      description:
-          'Первые фразы приветствия и прощания, простые ответы. Потренируйтесь с аудио и карточками.',
-      center: Offset(kLevelMapWidth * 0.52, 68),
-    ),
-    LevelMapNode(
-      lessonIndex: 2,
-      title: 'Знакомство',
-      subtitleKk: 'Танысу',
-      description: 'Как представиться, спросить имя и страну. Базовые вопросы «кім?», «қайдан?».',
-      center: Offset(kLevelMapWidth * 0.22, 188),
-    ),
-    LevelMapNode(
-      lessonIndex: 3,
-      title: 'Семья',
-      subtitleKk: 'Отбасы',
-      description: 'Слова про семью: әке, ана, аға, сіңлі. Простые предложения о родственниках.',
-      center: Offset(kLevelMapWidth * 0.72, 288),
-    ),
-    LevelMapNode(
-      lessonIndex: 4,
-      title: 'В городе',
-      subtitleKk: 'Қалада',
-      description: 'Дорога, транспорт, «қай жақта?» — ориентация и полезные выражения в городе.',
-      center: Offset(kLevelMapWidth * 0.28, 392),
-    ),
-    LevelMapNode(
-      lessonIndex: 5,
-      title: 'Еда',
-      subtitleKk: 'Тамақ',
-      description: 'Названия блюд и напитков, «мен таңдаймын», вежливые фразы за столом.',
-      center: Offset(kLevelMapWidth * 0.62, 500),
-    ),
-  ];
-
-  static List<Offset> get centers => lessons.map((n) => n.center).toList();
-
+  /// Открыть первый доступный урок (вызывается кнопкой «Начать урок»)
   static Future<void> openRecommendedLesson(BuildContext context) async {
     final done = await AppStorage.getCompletedLessons();
-    for (final n in lessons) {
-      if (done.contains(n.lessonIndex)) continue;
-      if (await AppStorage.isLessonUnlocked(n.lessonIndex)) {
-        await openLessonByIndex(context, n.lessonIndex);
+    for (final node in _kFallback) {
+      if (done.contains(node.lessonIndex)) continue;
+      if (await AppStorage.isLessonUnlocked(node.lessonIndex)) {
+        await LessonFlowScreen.open(context, node);
         return;
       }
     }
-    await openLessonByIndex(context, lessons.last.lessonIndex);
-  }
-
-  static Future<void> openLessonByIndex(BuildContext context, int lessonIndex) async {
-    if (!await AppStorage.isLessonUnlocked(lessonIndex)) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Сначала пройдите предыдущий урок')),
-      );
-      return;
-    }
-    for (final n in lessons) {
-      if (n.lessonIndex == lessonIndex) {
-        if (!context.mounted) return;
-        await LessonFlowScreen.open(context, n);
-        return;
-      }
-    }
+    await LessonFlowScreen.open(context, _kFallback.last);
   }
 
   @override
@@ -164,7 +179,7 @@ class HomeLevelMap extends StatefulWidget {
 }
 
 class HomeLevelMapState extends State<HomeLevelMap> {
-  Set<int> _completed = {};
+  List<_MapLesson> _lessons = [];
   bool _loading = true;
 
   @override
@@ -173,77 +188,183 @@ class HomeLevelMapState extends State<HomeLevelMap> {
     reloadProgress();
   }
 
+  // ── Загрузка: сначала бэкенд, при неудаче — фоллбэк ─────────────────────
+
   Future<void> reloadProgress() async {
-    final c = await AppStorage.getCompletedLessons();
+    if (!mounted) return;
+    setState(() => _loading = true);
+
+    List<_MapLesson> lessons = await _loadFromBackend();
+
+    if (lessons.isEmpty) {
+      lessons = await _buildFallback();
+    }
+
     if (!mounted) return;
     setState(() {
-      _completed = c;
+      _lessons = lessons;
       _loading = false;
     });
   }
 
+  Future<List<_MapLesson>> _loadFromBackend() async {
+    try {
+      final courses = await LessonService.getCourses();
+      if (courses.isEmpty) return [];
+
+      final levels = await LessonService.getCourseLevels(courses.first.id);
+      if (levels.isEmpty) return [];
+
+      // Собираем все уроки из всех уровней по порядку
+      final allLessons = <LessonModel>[];
+      for (final level in levels) {
+        allLessons.addAll(level.lessons);
+      }
+      if (allLessons.isEmpty) return [];
+
+      return allLessons.asMap().entries.map((entry) {
+        final i = entry.key;
+        final lesson = entry.value;
+        // Первый урок всегда разблокирован
+        final isFirst = i == 0;
+        return _MapLesson(
+          backendId: lesson.id,
+          fallbackIndex: i + 1,
+          title: lesson.title,
+          subtitleKk: lesson.title,
+          description: '${lesson.xpReward} XP',
+          unlocked: isFirst || lesson.unlocked,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<_MapLesson>> _buildFallback() async {
+    final done = await AppStorage.getCompletedLessons();
+    return _kFallback.asMap().entries.map((entry) {
+      final i = entry.key;
+      final node = entry.value;
+      final prevDone = i == 0 || done.contains(_kFallback[i - 1].lessonIndex);
+      return _MapLesson(
+        backendId: null,
+        fallbackIndex: node.lessonIndex,
+        title: node.title,
+        subtitleKk: node.subtitleKk,
+        description: node.description,
+        unlocked: prevDone,
+      );
+    }).toList();
+  }
+
+  // ── Сегменты пути ─────────────────────────────────────────────────────────
+
   List<_SegmentKind> _segmentKinds() {
     final kinds = <_SegmentKind>[];
-    for (var s = 0; s < HomeLevelMap.centers.length - 1; s++) {
-      final fromLesson = s + 1;
-      final toLesson = s + 2;
-      final doneFrom = _completed.contains(fromLesson);
-      final doneTo = _completed.contains(toLesson);
-      if (doneTo) {
-        kinds.add(_SegmentKind.completed);
-      } else if (doneFrom) {
-        kinds.add(_SegmentKind.next);
-      } else {
+    for (var s = 0; s < _lessons.length - 1; s++) {
+      final curr = _lessons[s];
+      final next = _lessons[s + 1];
+      if (!curr.unlocked) {
         kinds.add(_SegmentKind.locked);
+      } else if (next.unlocked) {
+        kinds.add(_SegmentKind.completed);
+      } else {
+        kinds.add(_SegmentKind.next);
       }
     }
     return kinds;
   }
 
-  Future<void> _onNodeTap(LevelMapNode node) async {
-    if (!await AppStorage.isLessonUnlocked(node.lessonIndex)) {
+  // ── Тап на пузырёк ───────────────────────────────────────────────────────
+
+  Future<void> _onNodeTap(_MapLesson lesson) async {
+    if (!lesson.unlocked) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Сначала пройдите предыдущий урок')),
+        const SnackBar(
+          content: Text('Сначала пройдите предыдущий урок'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
+
     if (!mounted) return;
-    await LessonFlowScreen.open(context, node);
+
+    if (lesson.isBackend) {
+      // Реальный урок с бэкенда
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ExerciseScreen(
+            lessonId: lesson.backendId!,
+            lessonTitle: lesson.title,
+          ),
+        ),
+      );
+    } else {
+      // Оффлайн-фоллбэк
+      final node = _kFallback.firstWhere(
+        (n) => n.lessonIndex == lesson.fallbackIndex,
+        orElse: () => _kFallback.first,
+      );
+      await LessonFlowScreen.open(context, node);
+    }
+
     await reloadProgress();
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const SizedBox(
         height: 380,
-        child: Center(child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))),
+        child: Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
       );
+    }
+
+    if (_lessons.isEmpty) {
+      return const SizedBox(height: 60);
     }
 
     const nodeSize = 72.0;
     const half = nodeSize / 2;
+    final n = _lessons.length;
+    final pts = _centers(n);
+    final canvasH = _canvasHeight(n);
     final kinds = _segmentKinds();
+
+    // Высота виджета: показываем максимум 3 пузырька + скролл
+    final widgetHeight = n <= 3 ? canvasH + kMapCanvasPadding * 2 : 380.0;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.hardEdge,
       child: SizedBox(
-        height: 380,
+        height: widgetHeight,
         child: InteractiveViewer(
           alignment: Alignment.center,
-          minScale: 0.85,
+          minScale: 0.75,
           maxScale: 1.55,
           boundaryMargin: const EdgeInsets.all(12),
           constrained: false,
           clipBehavior: Clip.hardEdge,
           child: SizedBox(
             width: kMapCanvasWidth,
-            height: kMapCanvasHeight,
+            height: canvasH + kMapCanvasPadding * 2,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
+                // Фон
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -260,11 +381,8 @@ class HomeLevelMapState extends State<HomeLevelMap> {
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  top: 0,
+                // Виньетка
+                Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -281,32 +399,31 @@ class HomeLevelMapState extends State<HomeLevelMap> {
                     ),
                   ),
                 ),
+                // Пути + узлы
                 Positioned(
                   left: kMapCanvasPadding,
                   top: kMapCanvasPadding,
                   width: kLevelMapWidth,
-                  height: kLevelMapHeight,
+                  height: canvasH,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
+                      // Линии-пути
                       CustomPaint(
-                        size: const Size(kLevelMapWidth, kLevelMapHeight),
-                        painter: _LevelPathPainter(
-                          points: HomeLevelMap.centers,
-                          kinds: kinds,
-                        ),
+                        size: Size(kLevelMapWidth, canvasH),
+                        painter: _LevelPathPainter(points: pts, kinds: kinds),
                       ),
-                      for (final node in HomeLevelMap.lessons)
+                      // Пузырьки уроков
+                      for (var i = 0; i < _lessons.length; i++)
                         Positioned(
-                          left: node.center.dx - half,
-                          top: node.center.dy - half,
+                          left: pts[i].dx - half,
+                          top: pts[i].dy - half,
                           width: nodeSize,
                           height: nodeSize,
-                          child: _LevelNodeBubble(
-                            node: node,
-                            completed: _completed.contains(node.lessonIndex),
-                            unlocked: _completed.contains(node.lessonIndex - 1) || node.lessonIndex == 1,
-                            onTap: () => _onNodeTap(node),
+                          child: _NodeBubble(
+                            lesson: _lessons[i],
+                            index: i,
+                            onTap: () => _onNodeTap(_lessons[i]),
                           ),
                         ),
                     ],
@@ -321,28 +438,28 @@ class HomeLevelMapState extends State<HomeLevelMap> {
   }
 }
 
-class _LevelNodeBubble extends StatelessWidget {
-  final LevelMapNode node;
-  final bool completed;
-  final bool unlocked;
+// ── Пузырёк урока ─────────────────────────────────────────────────────────────
+
+class _NodeBubble extends StatelessWidget {
+  final _MapLesson lesson;
+  final int index;
   final VoidCallback onTap;
 
-  const _LevelNodeBubble({
-    required this.node,
-    required this.completed,
-    required this.unlocked,
+  const _NodeBubble({
+    required this.lesson,
+    required this.index,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final locked = !unlocked;
-    final borderColor = completed
-        ? AppTheme.primary
-        : unlocked
-            ? const Color(0xFFC9E85C)
-            : AppTheme.border;
-    final borderW = completed ? 3.5 : (unlocked ? 3.0 : 2.0);
+    final locked    = !lesson.unlocked;
+    final completed = false; // серверная разблокировка определяется через unlocked следующего
+
+    final borderColor = locked
+        ? AppTheme.border
+        : const Color(0xFFC9E85C);
+    final borderW = locked ? 2.0 : 3.0;
 
     return Material(
       color: Colors.transparent,
@@ -350,18 +467,18 @@ class _LevelNodeBubble extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Opacity(
-          opacity: locked ? 0.5 : 1,
+          opacity: locked ? 0.5 : 1.0,
           child: Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: completed ? AppTheme.chipFill : Colors.white,
+              color: Colors.white,
               border: Border.all(color: borderColor, width: borderW),
               boxShadow: [
-                if (unlocked && !completed)
+                if (!locked)
                   BoxShadow(
                     blurRadius: 14,
                     spreadRadius: 0,
-                    color: const Color(0xFFC9E85C).withOpacity(0.45),
+                    color: const Color(0xFFC9E85C).withOpacity(0.4),
                   ),
                 const BoxShadow(
                   blurRadius: 10,
@@ -372,21 +489,25 @@ class _LevelNodeBubble extends StatelessWidget {
             ),
             child: Center(
               child: locked
-                  ? Icon(Icons.lock_outline, color: AppTheme.primary.withOpacity(0.65), size: 26)
+                  ? Icon(
+                      Icons.lock_outline,
+                      color: AppTheme.primary.withOpacity(0.65),
+                      size: 26,
+                    )
                   : Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${node.lessonIndex}',
+                          '${index + 1}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: AppTheme.textPrimary,
                           ),
                         ),
-                        Icon(
-                          completed ? Icons.check_circle_rounded : Icons.star_rounded,
-                          color: completed ? AppTheme.primary : const Color(0xFF8FAF3A),
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Color(0xFF8FAF3A),
                           size: 22,
                         ),
                       ],

@@ -25,7 +25,7 @@ class ApiClient {
       BaseOptions(
         baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 60),
         headers: {'Content-Type': 'application/json'},
       ),
     );
@@ -33,6 +33,7 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: _attachToken,
+        onResponse: _unwrapApiResponse,
         onError: _handleError,
       ),
     );
@@ -49,6 +50,24 @@ class ApiClient {
       options.headers['Authorization'] = 'Bearer $token';
     }
     handler.next(options);
+  }
+
+  /// Бэкенд оборачивает все ответы в ApiResponse:
+  ///   { "success": true, "data": <реальные данные>, "error": null }
+  /// Этот interceptor автоматически разворачивает конверт, чтобы сервисы
+  /// работали напрямую с реальными данными через response.data.
+  void _unwrapApiResponse(
+    Response response,
+    ResponseInterceptorHandler handler,
+  ) {
+    final body = response.data;
+    if (body is Map<String, dynamic> && body.containsKey('success')) {
+      if (body['success'] == true) {
+        response.data = body['data'];
+      }
+      // success == false: оставляем как есть, ошибка будет обработана выше
+    }
+    handler.next(response);
   }
 
   Future<void> _handleError(

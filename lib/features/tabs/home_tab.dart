@@ -7,6 +7,8 @@ import '../../app/app_strings.dart';
 import '../../app/ui_locale.dart';
 import '../../services/profile_service.dart';
 import '../../services/stats_service.dart';
+import '../../services/lesson_service.dart';
+import '../lesson/lesson_map_screen.dart';
 
 // ── Home header model ─────────────────────────────────────────────────────────
 
@@ -14,11 +16,13 @@ class _HomeHeaderData {
   final String name;
   final int streakDays;
   final List<CalendarDay> calendar;
+  final List<CourseModel> courses;
 
   const _HomeHeaderData({
     required this.name,
     required this.streakDays,
     required this.calendar,
+    required this.courses,
   });
 }
 
@@ -90,18 +94,43 @@ class _HomeTabState extends State<HomeTab> {
       calendar = homeData.calendar;
     } catch (_) {}
 
+    List<CourseModel> courses = [];
+    try {
+      courses = await LessonService.getCourses();
+    } catch (_) {}
+
     return _HomeHeaderData(
       name: name,
       streakDays: streak,
       calendar: calendar,
+      courses: courses,
     );
   }
 
-  Future<void> _startLesson() async {
-    await HomeLevelMap.openRecommendedLesson(context);
-    await _mapKey.currentState?.reloadProgress();
-    if (mounted) {
-      setState(() => _headerFuture = _loadHeader());
+  Future<void> _startLesson(List<CourseModel> courses) async {
+    if (courses.isNotEmpty) {
+      final course = courses.first;
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LessonMapScreen(
+            courseId: course.id,
+            courseTitle: course.title,
+          ),
+        ),
+      );
+      await _mapKey.currentState?.reloadProgress();
+      if (mounted) {
+        setState(() => _headerFuture = _loadHeader());
+      }
+    } else {
+      // Фоллбэк: оффлайн карта если курсов с бэка нет
+      await HomeLevelMap.openRecommendedLesson(context);
+      await _mapKey.currentState?.reloadProgress();
+      if (mounted) {
+        setState(() => _headerFuture = _loadHeader());
+      }
     }
   }
 
@@ -115,6 +144,7 @@ class _HomeTabState extends State<HomeTab> {
         final name = snap.data?.name ?? '...';
         final streak = snap.data?.streakDays ?? 0;
         final calendar = snap.data?.calendar;
+        final courses = snap.data?.courses ?? [];
 
         // If we have backend calendar data, use it; otherwise fall back to
         // a simple "week around today" display.
@@ -203,7 +233,7 @@ class _HomeTabState extends State<HomeTab> {
               const SizedBox(height: 14),
               PrimaryButton(
                 text: s.startLesson,
-                onPressed: _startLesson,
+                onPressed: () => _startLesson(courses),
               ),
 
               const SizedBox(height: 18),

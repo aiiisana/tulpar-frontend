@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../services/chat_service.dart';
@@ -15,6 +16,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<ChatMessageModel> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  String? _errorText;
 
   @override
   void initState() {
@@ -41,11 +43,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty) return;
+    if (_sending) {
+      debugPrint('[Chat] _send() blocked — already sending');
+      return;
+    }
 
     _controller.clear();
 
-    // Оптимистично добавляем сообщение пользователя
+    // Optimistically add the user's message bubble immediately
     final tempUserMsg = ChatMessageModel(
       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
       role: ChatRole.USER,
@@ -56,16 +62,39 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages.add(tempUserMsg);
       _sending = true;
+      _errorText = null;
     });
     _scrollToBottom();
 
-    final reply = await ChatService.sendMessage(text);
+    debugPrint('[Chat] Sending message to AI: "$text"');
+
+    ChatMessageModel? reply;
+    try {
+      // Backend AI call — may take up to ~90 s (OpenAI timeout 60 s + network)
+      reply = await ChatService.sendMessage(text)
+          .timeout(
+            const Duration(seconds: 90),
+            onTimeout: () {
+              debugPrint('[Chat] sendMessage timed out after 90 s');
+              return null;
+            },
+          );
+      debugPrint('[Chat] Got reply: ${reply?.content?.substring(0, (reply.content.length).clamp(0, 80))}');
+    } catch (e) {
+      debugPrint('[Chat] _send() caught unexpected error: $e');
+      reply = null;
+    }
 
     if (!mounted) return;
+
     setState(() {
       _sending = false;
       if (reply != null) {
         _messages.add(reply);
+        _errorText = null;
+      } else {
+        _errorText =
+            'Не удалось получить ответ от ИИ. Проверьте подключение и попробуйте снова.';
       }
     });
     _scrollToBottom();
@@ -110,6 +139,36 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
           ),
 
+          // ── Ошибка ────────────────────────────────────────────────────
+          if (_errorText != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFEF9A9A)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Color(0xFFC62828), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorText!,
+                        style: const TextStyle(color: Color(0xFFC62828), fontSize: 12),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _errorText = null),
+                      child: const Icon(Icons.close, size: 16, color: Color(0xFFC62828)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // ── Индикатор «печатает» ───────────────────────────────────────
           if (_sending)
             Padding(
@@ -124,7 +183,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: AppTheme.border),
                     ),
-                    child: const _TypingDots(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        _TypingDots(),
+                        SizedBox(width: 8),
+                        Text('ИИ отвечает...',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary)),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -159,18 +228,19 @@ class _ChatScreenState extends State<ChatScreen> {
                       onSubmitted: (_) => _send(),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _send,
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        shape: BoxShape.circle,
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Material(
+                      color: _sending ? Colors.grey.shade400 : AppTheme.primary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _sending ? null : _send,
+                        child: const Icon(Icons.send_rounded,
+                            color: Colors.white, size: 20),
                       ),
-                      child: const Icon(Icons.send_rounded,
-                          color: Colors.white, size: 20),
                     ),
                   ),
                 ],
