@@ -116,22 +116,27 @@ class CourseLevelModel {
   final String id;
   final String title;
   final int orderIndex;
+  /// The difficulty group this level belongs to (e.g. "BEGINNER").
+  /// Null if the backend does not include this field.
+  final String? difficultyLevel;
   final List<LessonModel> lessons;
 
   CourseLevelModel({
     required this.id,
     required this.title,
     required this.orderIndex,
+    this.difficultyLevel,
     required this.lessons,
   });
 
   factory CourseLevelModel.fromJson(Map<String, dynamic> j) {
     final rawLessons = j['lessons'] as List<dynamic>? ?? [];
     return CourseLevelModel(
-      id:         j['id'] as String,
-      title:      j['title'] as String,
-      orderIndex: (j['orderIndex'] as num?)?.toInt() ?? 0,
-      lessons:    rawLessons
+      id:             j['id'] as String,
+      title:          j['title'] as String,
+      orderIndex:     (j['orderIndex'] as num?)?.toInt() ?? 0,
+      difficultyLevel: j['difficultyLevel'] as String?,
+      lessons:        rawLessons
           .map((l) => LessonModel.fromJson(l as Map<String, dynamic>))
           .toList(),
     );

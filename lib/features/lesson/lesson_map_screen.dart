@@ -22,6 +22,7 @@ class LessonMapScreen extends StatefulWidget {
 class _LessonMapScreenState extends State<LessonMapScreen> {
   List<CourseLevelModel> _levels = [];
   bool _loading = true;
+  bool _needsLevelSelection = false;
 
   @override
   void initState() {
@@ -30,11 +31,12 @@ class _LessonMapScreenState extends State<LessonMapScreen> {
   }
 
   Future<void> _load() async {
-    final levels =
-        await LessonService.getCourseLevels(widget.courseId);
+    final levels = await LessonService.getCourseLevels(widget.courseId);
     if (!mounted) return;
     setState(() {
       _levels = levels;
+      // Empty list means the user has not selected a difficulty level yet.
+      _needsLevelSelection = levels.isEmpty;
       _loading = false;
     });
   }
@@ -51,7 +53,9 @@ class _LessonMapScreenState extends State<LessonMapScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _levels.isEmpty
+          : _needsLevelSelection
+              ? _noLevelState()
+              : _levels.isEmpty
               ? _emptyState()
               : RefreshIndicator(
                   onRefresh: () async {
@@ -69,6 +73,32 @@ class _LessonMapScreenState extends State<LessonMapScreen> {
                     ),
                   ),
                 ),
+    );
+  }
+
+  Widget _noLevelState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.school_outlined, size: 64, color: AppTheme.primary),
+            const SizedBox(height: 16),
+            const Text(
+              'Уровень не выбран',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Пройдите настройку уровня, чтобы видеть свои уроки',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

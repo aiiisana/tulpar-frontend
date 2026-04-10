@@ -7,12 +7,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// При 401 — принудительно обновляет токен и повторяет запрос один раз.
 ///
 /// НАСТРОЙКА BASEURL под среду:
-///   Android эмулятор → http://10.0.2.2:8080/api
-///   iOS симулятор     → http://localhost:8080/api
-///   Реальный телефон  → http://192.168.X.X:8080/api  (IP компьютера в локальной сети)
-///   ngrok             → https://xxxx.ngrok-free.app/api
+///   Android эмулятор → --dart-define=API_BASE=http://10.0.2.2:8080/api
+///   iOS симулятор     → --dart-define=API_BASE=http://localhost:8080/api  (по умолчанию)
+///   Реальный телефон  → --dart-define=API_BASE=http://192.168.X.X:8080/api
+///   Production        → --dart-define=API_BASE=https://api.yourapp.com/api
+///
+/// Пример запуска: flutter run --dart-define=API_BASE=http://10.0.2.2:8080/api
 class ApiClient {
-  static const String baseUrl = 'http://localhost:8080/api';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE',
+    defaultValue: 'http://localhost:8080/api',
+  );
 
   // Синглтон: ApiClient() всегда возвращает один и тот же экземпляр
   static final ApiClient _instance = ApiClient._internal();

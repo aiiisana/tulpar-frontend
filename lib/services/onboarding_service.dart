@@ -60,10 +60,11 @@ class OnboardingService {
 
   /// Русские строки UI → DifficultyLevel enum бэкенда
   static String _levelToApi(String uiLevel) => switch (uiLevel) {
-        'Начинающий'  => 'BEGINNER',
-        'Средний'     => 'INTERMEDIATE',
-        'Продвинутый' => 'ADVANCED',
-        _             => 'BEGINNER', // fallback
+        'Начинающий'    => 'BEGINNER',
+        'Элементарный'  => 'ELEMENTARY',
+        'Средний'       => 'INTERMEDIATE',
+        'Продвинутый'   => 'ADVANCED',
+        _               => 'BEGINNER', // fallback
       };
 
   /// Минуты из UI → DailyGoal enum бэкенда

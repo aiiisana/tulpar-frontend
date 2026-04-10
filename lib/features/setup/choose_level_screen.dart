@@ -26,7 +26,7 @@ class _ChooseLevelScreenState extends State<ChooseLevelScreen> {
   @override
   Widget build(BuildContext context) {
 
-    final levels = const ['Начинающий', 'Средний', 'Продвинутый'];
+    final levels = const ['Начинающий', 'Элементарный', 'Средний', 'Продвинутый'];
     return Scaffold(
       body: SafeArea(
         child: Padding(

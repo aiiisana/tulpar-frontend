@@ -42,6 +42,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   PlayerState _audioState = PlayerState.stopped;
 
+  // XP earned on the last submitted exercise
+  int _lastXpEarned = 0;
+
   @override
   void initState() {
     super.initState();
@@ -79,20 +82,21 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     }
   }
 
+  /// Converts a possibly relative path (e.g. /assets/img/A.png) to a fully
+  /// qualified URL by prepending the API base when no scheme is present.
+  String _resolveUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const apiBase = String.fromEnvironment(
+      'API_BASE', defaultValue: 'http://localhost:8080/api');
+    return '$apiBase$url';
+  }
+
   Future<void> _playAudio(String url) async {
     try {
       if (_audioState == PlayerState.playing) {
         await _audioPlayer.stop();
       } else {
-        // Поддерживаем как http/https URL, так и assets пути
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-          await _audioPlayer.play(UrlSource(url));
-        } else {
-          // Относительный путь — пробуем как URL через базовый адрес API
-          final apiBase = const String.fromEnvironment(
-            'API_BASE', defaultValue: 'http://localhost:8080');
-          await _audioPlayer.play(UrlSource('$apiBase$url'));
-        }
+        await _audioPlayer.play(UrlSource(_resolveUrl(url)));
       }
     } catch (e) {
       debugPrint('[Audio] play error: $e');
@@ -112,6 +116,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     if (!mounted) return;
     setState(() {
       _lastCorrect = result?.correct ?? false;
+      _lastXpEarned = result?.xpEarned ?? 0;
       if (_lastCorrect == true) _correctCount++;
     });
   }
@@ -212,7 +217,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: Image.network(
-              ex.imageUrl!,
+              _resolveUrl(ex.imageUrl!),
               height: 180,
               width: double.infinity,
               fit: BoxFit.cover,
@@ -520,15 +525,30 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              correct ? 'Верно!' : 'Неверно',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: correct
-                    ? const Color(0xFF2E7D32)
-                    : const Color(0xFFC62828),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  correct ? 'Верно!' : 'Неверно',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: correct
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFFC62828),
+                  ),
+                ),
+                if (correct && _lastXpEarned > 0)
+                  Text(
+                    '+$_lastXpEarned XP',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF388E3C),
+                    ),
+                  ),
+              ],
             ),
           ),
           ElevatedButton(

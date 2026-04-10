@@ -30,7 +30,12 @@ class FlashcardModel {
 class FlashcardService {
   static final ApiClient _apiClient = ApiClient();
 
-  static Future<List<FlashcardModel>> getAll({int page = 0, int size = 50}) async {
+  /// Returns the list of flashcards from the backend.
+  ///
+  /// Returns an **empty list** when the server responds successfully but has
+  /// no cards yet.  Returns **null** on any network/server error so callers
+  /// can distinguish "no cards" from "request failed".
+  static Future<List<FlashcardModel>?> getAll({int page = 0, int size = 50}) async {
     try {
       final response = await _apiClient.get(
         '/flashcards',
@@ -38,19 +43,19 @@ class FlashcardService {
       );
 
       if (response.data is! Map<String, dynamic>) {
-        debugPrint('Unexpected response format: ${response.data}');
-        return [];
+        debugPrint('FlashcardService: unexpected response format: ${response.data}');
+        return null;
       }
 
       final data = response.data as Map<String, dynamic>;
       final List content = data['content'] ?? [];
 
       return content
-          .map((item) => FlashcardModel.fromJson(item))
+          .map((item) => FlashcardModel.fromJson(item as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      debugPrint('Error fetching flashcards: $e');
-      return [];
+      debugPrint('FlashcardService: error fetching flashcards: $e');
+      return null; // null = network/server error; callers must show error UI
     }
   }
 }

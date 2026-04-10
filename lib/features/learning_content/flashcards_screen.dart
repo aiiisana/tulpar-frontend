@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/app_storage.dart';
 import '../../app/theme.dart';
-import '../../data/flashcard_deck.dart';
 import '../../models/flashcard_item.dart';
 import '../../models/saved_flashcard.dart';
 import '../../services/flashcard_service.dart';
@@ -29,6 +28,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   List<FlashcardItem> _deck = [];
   bool _loading = true;
+  bool _hasError = false;
 
   int _index = 0;
   bool _showTranslation = false;
@@ -52,19 +52,28 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   // ── Data loading ─────────────────────────────────────────────────────────────
 
   Future<void> _loadDeck() async {
+    setState(() {
+      _loading = true;
+      _hasError = false;
+    });
+
     final models = await FlashcardService.getAll(size: 100);
     if (!mounted) return;
 
-    // Use backend data; fall back to the bundled deck when the server returns nothing.
-    final items = models.isNotEmpty
-        ? models.map(_modelToItem).toList()
-        : kFlashcardDeck;
+    if (models == null) {
+      // Network or server error — show error UI, do NOT silently use hardcoded data.
+      setState(() {
+        _loading = false;
+        _hasError = true;
+      });
+      return;
+    }
 
     setState(() {
-      _deck = items;
+      _deck = models.map(_modelToItem).toList();
       _loading = false;
     });
-    if (items.isNotEmpty) _syncStar();
+    if (_deck.isNotEmpty) _syncStar();
   }
 
   // ── Star (save word) ─────────────────────────────────────────────────────────
@@ -140,6 +149,51 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         backgroundColor: AppTheme.background,
         body: const SafeArea(
           child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (_hasError) {
+      return Scaffold(
+        backgroundColor: AppTheme.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(children: [CircleBackButton()]),
+              ),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.wifi_off_rounded,
+                          size: 48, color: AppTheme.textSecondary),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Не удалось загрузить карточки',
+                        style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Проверьте подключение к интернету',
+                        style: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                      const SizedBox(height: 20),
+                      TextButton.icon(
+                        onPressed: _loadDeck,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Повторить'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }

@@ -1,8 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../app/app_storage.dart';
 import '../app/theme.dart';
 import '../features/lesson/exercise_screen.dart';
-import '../models/level_map_node.dart';
 import '../services/lesson_service.dart';
 
 // ── Canvas constants ──────────────────────────────────────────────────────────
@@ -14,6 +13,21 @@ const double kMapCanvasWidth  = kLevelMapWidth + kMapCanvasPadding * 2;
 const double _kNodeStep = 130.0; // вертикальный шаг между пузырьками
 const double _kFirstY  = 68.0;  // Y первого пузырька
 const double _kBottomMargin = 80.0;
+
+// ── Load result ───────────────────────────────────────────────────────────────
+
+class _LoadResult {
+  final List<_MapLesson> lessons;
+  final bool needsLevelSelection;
+
+  const _LoadResult({required this.lessons, required this.needsLevelSelection});
+
+  factory _LoadResult.empty() =>
+      const _LoadResult(lessons: [], needsLevelSelection: false);
+
+  factory _LoadResult.needsSelection() =>
+      const _LoadResult(lessons: [], needsLevelSelection: true);
+}
 
 // ── Internal data model ───────────────────────────────────────────────────────
 
@@ -34,32 +48,6 @@ class _MapLesson {
 
   bool get isBackend => backendId != null;
 }
-
-// ── Fallback 3 lessons ────────────────────────────────────────────────────────
-
-const List<LevelMapNode> _kFallback = [
-  LevelMapNode(
-    lessonIndex: 1,
-    title: 'Привет!',
-    subtitleKk: 'Сәлем!',
-    description: 'Первые фразы приветствия и прощания.',
-    center: Offset.zero, // пересчитывается динамически
-  ),
-  LevelMapNode(
-    lessonIndex: 2,
-    title: 'Знакомство',
-    subtitleKk: 'Танысу',
-    description: 'Как представиться, спросить имя.',
-    center: Offset.zero,
-  ),
-  LevelMapNode(
-    lessonIndex: 3,
-    title: 'Семья',
-    subtitleKk: 'Отбасы',
-    description: 'Слова про семью: әке, ана, аға.',
-    center: Offset.zero,
-  ),
-];
 
 // ── Position helpers ──────────────────────────────────────────────────────────
 
@@ -163,25 +151,40 @@ class HomeLevelMap extends StatefulWidget {
     try {
       final courses = await LessonService.getCourses();
       if (courses.isEmpty) { _noLessonsSnack(context); return; }
+
       final levels = await LessonService.getCourseLevels(courses.first.id);
-      for (final level in levels) {
-        for (final lesson in level.lessons) {
-          if (lesson.unlocked && !lesson.completed) {
-            if (!context.mounted) return;
-            await Navigator.push(context, MaterialPageRoute(
-              builder: (_) => ExerciseScreen(lessonId: lesson.id, lessonTitle: lesson.title),
-            ));
-            return;
-          }
+
+      if (levels.isEmpty) {
+        // User has no difficulty selected — prompt them.
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Сначала выберите уровень в настройках'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        return;
+      }
+
+      // Backend returns exactly one level (the user's difficulty group).
+      // Find the first unlocked-but-not-completed lesson.
+      final lessons = levels.first.lessons;
+      for (final lesson in lessons) {
+        if (lesson.unlocked && !lesson.completed) {
+          if (!context.mounted) return;
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (_) => ExerciseScreen(
+                lessonId: lesson.id, lessonTitle: lesson.title),
+          ));
+          return;
         }
       }
-      // Все завершены — открываем последний
-      final allLessons = levels.expand((l) => l.lessons).toList();
-      if (allLessons.isNotEmpty && context.mounted) {
+      // All lessons completed — re-open the last one for review.
+      if (lessons.isNotEmpty && context.mounted) {
         await Navigator.push(context, MaterialPageRoute(
           builder: (_) => ExerciseScreen(
-            lessonId: allLessons.last.id,
-            lessonTitle: allLessons.last.title,
+            lessonId: lessons.last.id,
+            lessonTitle: lessons.last.title,
           ),
         ));
       }
@@ -204,6 +207,9 @@ class HomeLevelMap extends StatefulWidget {
 class HomeLevelMapState extends State<HomeLevelMap> {
   List<_MapLesson> _lessons = [];
   bool _loading = true;
+  /// True when the backend returned an empty level list because the user
+  /// has not selected a difficulty level yet (onboarding incomplete).
+  bool _needsLevelSelection = false;
 
   @override
   void initState() {
@@ -215,66 +221,64 @@ class HomeLevelMapState extends State<HomeLevelMap> {
 
   Future<void> reloadProgress() async {
     if (!mounted) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _needsLevelSelection = false;
+    });
 
-    List<_MapLesson> lessons = await _loadFromBackend();
-
-    if (lessons.isEmpty) {
-      lessons = await _buildFallback();
-    }
+    final result = await _loadFromBackend();
 
     if (!mounted) return;
     setState(() {
-      _lessons = lessons;
+      _lessons = result.lessons;
+      _needsLevelSelection = result.needsLevelSelection;
       _loading = false;
     });
   }
 
-  Future<List<_MapLesson>> _loadFromBackend() async {
+  /// Loads lessons for the user's selected difficulty from the backend.
+  ///
+  /// Returns a [_LoadResult] with:
+  /// - [_LoadResult.lessons] — the ordered list of map nodes (empty on error or no content)
+  /// - [_LoadResult.needsLevelSelection] — true when the backend explicitly returned an empty
+  ///   list because the user has not chosen a difficulty yet (vs. a network failure)
+  Future<_LoadResult> _loadFromBackend() async {
     try {
       final courses = await LessonService.getCourses();
-      if (courses.isEmpty) return [];
+      if (courses.isEmpty) return _LoadResult.empty();
 
       final levels = await LessonService.getCourseLevels(courses.first.id);
-      if (levels.isEmpty) return [];
 
-      // Собираем все уроки из всех уровней по порядку
-      final allLessons = <LessonModel>[];
-      for (final level in levels) {
-        allLessons.addAll(level.lessons);
+      if (levels.isEmpty) {
+        // Backend intentionally returns [] when the user has no difficulty set.
+        // Signal the UI to show the "please select your level" prompt.
+        return _LoadResult.needsSelection();
       }
-      if (allLessons.isEmpty) return [];
 
-      return allLessons.asMap().entries.map((entry) {
-        final i = entry.key;
-        final lesson = entry.value;
-        return _MapLesson(
+      // The backend guarantees exactly ONE level group (the user's difficulty).
+      // Never flatten across multiple groups — that would mix difficulties and
+      // break sequential unlocking.
+      final level = levels.first;
+      final lessons = level.lessons;
+      if (lessons.isEmpty) return _LoadResult.empty();
+
+      return _LoadResult(
+        lessons: lessons.map((lesson) => _MapLesson(
           backendId: lesson.id,
-          fallbackIndex: i + 1,
+          fallbackIndex: lessons.indexOf(lesson) + 1,
           title: lesson.title,
-          unlocked: i == 0 || lesson.unlocked,
+          // Trust the backend's unlock flag completely.
+          // Backend correctly marks the first lesson as unlocked and gates
+          // subsequent lessons behind completing all exercises of the previous one.
+          unlocked: lesson.unlocked,
           completed: lesson.completed,
-        );
-      }).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<List<_MapLesson>> _buildFallback() async {
-    final done = await AppStorage.getCompletedLessons();
-    return _kFallback.asMap().entries.map((entry) {
-      final i = entry.key;
-      final node = entry.value;
-      final prevDone = i == 0 || done.contains(_kFallback[i - 1].lessonIndex);
-      return _MapLesson(
-        backendId: null,
-        fallbackIndex: node.lessonIndex,
-        title: node.title,
-        unlocked: prevDone,
-        completed: done.contains(node.lessonIndex),
+        )).toList(),
+        needsLevelSelection: false,
       );
-    }).toList();
+    } catch (e) {
+      debugPrint('[HomeLevelMap] _loadFromBackend error: $e');
+      return _LoadResult.empty();
+    }
   }
 
   // ── Сегменты пути ─────────────────────────────────────────────────────────
@@ -311,43 +315,16 @@ class HomeLevelMapState extends State<HomeLevelMap> {
 
     if (!mounted) return;
 
-    if (lesson.isBackend) {
-      // Реальный урок с бэкенда → сразу в ExerciseScreen
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ExerciseScreen(
-            lessonId: lesson.backendId!,
-            lessonTitle: lesson.title,
-          ),
+    // All lessons now always come from the backend — backendId is always set.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExerciseScreen(
+          lessonId: lesson.backendId!,
+          lessonTitle: lesson.title,
         ),
-      );
-    } else {
-      // Оффлайн-фоллбэк: пробуем загрузить урок с бэкенда
-      try {
-        final courses = await LessonService.getCourses();
-        if (courses.isNotEmpty) {
-          final levels = await LessonService.getCourseLevels(courses.first.id);
-          final allLessons = levels.expand((l) => l.lessons).toList();
-          final idx = lesson.fallbackIndex - 1;
-          if (idx < allLessons.length && mounted) {
-            await Navigator.push(context, MaterialPageRoute(
-              builder: (_) => ExerciseScreen(
-                lessonId: allLessons[idx].id,
-                lessonTitle: allLessons[idx].title,
-              ),
-            ));
-          }
-        }
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Уроки недоступны. Проверьте подключение.'),
-            behavior: SnackBarBehavior.floating,
-          ));
-        }
-      }
-    }
+      ),
+    );
 
     await reloadProgress();
   }
@@ -365,6 +342,39 @@ class HomeLevelMapState extends State<HomeLevelMap> {
             height: 28,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
+        ),
+      );
+    }
+
+    if (_needsLevelSelection) {
+      // User hasn't chosen a difficulty yet — guide them to onboarding.
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.school_outlined,
+                size: 48, color: AppTheme.primary.withOpacity(0.7)),
+            const SizedBox(height: 12),
+            const Text(
+              'Выберите уровень',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Пройдите настройку, чтобы начать обучение',
+              style: TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
     }

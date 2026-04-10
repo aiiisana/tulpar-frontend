@@ -9,6 +9,8 @@ class ProgressResult {
   final bool correct;
   final String status; // IN_PROGRESS | COMPLETED | FAILED
   final int attempts;
+  /// XP awarded for this submission — 0 when answer was wrong.
+  final int xpEarned;
 
   ProgressResult({
     required this.progressId,
@@ -16,6 +18,7 @@ class ProgressResult {
     required this.correct,
     required this.status,
     required this.attempts,
+    this.xpEarned = 0,
   });
 
   factory ProgressResult.fromJson(Map<String, dynamic> j) => ProgressResult(
@@ -24,6 +27,7 @@ class ProgressResult {
         correct:    j['correct'] as bool? ?? false,
         status:     j['status'] as String? ?? 'IN_PROGRESS',
         attempts:   (j['attempts'] as num?)?.toInt() ?? 1,
+        xpEarned:   (j['xpEarned'] as num?)?.toInt() ?? 0,
       );
 }
 
