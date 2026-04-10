@@ -6,20 +6,32 @@ class DailyChallengeModel {
   final String challengeDate;
   final List<String> letters;
   final List<String> imageUrls;
+  final int wordLength;
+  final String? correctWord;
 
   DailyChallengeModel({
     required this.id,
     required this.challengeDate,
     required this.letters,
     required this.imageUrls,
+    required this.wordLength,
+    this.correctWord,
   });
 
   factory DailyChallengeModel.fromJson(Map<String, dynamic> json) {
+    final letters = List<String>.from(json['letters'] as List<dynamic>? ?? []);
+    final correctWord = json['correctWord'] as String?;
+    // wordLength from backend; fallback to correctWord length, then letters count
+    final wordLength = (json['wordLength'] as int?) ??
+        correctWord?.length ??
+        letters.length;
     return DailyChallengeModel(
       id: json['id'] as String,
       challengeDate: json['challengeDate'] as String,
-      letters: List<String>.from(json['letters'] as List<dynamic>? ?? []),
+      letters: letters,
       imageUrls: List<String>.from(json['imageUrls'] as List<dynamic>? ?? []),
+      wordLength: wordLength,
+      correctWord: correctWord,
     );
   }
 }

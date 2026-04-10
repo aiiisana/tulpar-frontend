@@ -32,13 +32,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final history = await ChatService.getHistory(size: 50);
-    if (!mounted) return;
-    setState(() {
-      _messages.addAll(history);
-      _loading = false;
-    });
-    _scrollToBottom();
+    try {
+      final history = await ChatService.getHistory(size: 50);
+      if (!mounted) return;
+      setState(() {
+        _messages.addAll(history);
+        _loading = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('[Chat] _loadHistory error: $e');
+      if (!mounted) return;
+      // Always release the loading spinner even on error
+      setState(() => _loading = false);
+    }
   }
 
   Future<void> _send() async {
@@ -79,7 +86,11 @@ class _ChatScreenState extends State<ChatScreen> {
               return null;
             },
           );
-      debugPrint('[Chat] Got reply: ${reply?.content?.substring(0, (reply.content.length).clamp(0, 80))}');
+      if (reply != null) {
+        debugPrint('[Chat] Got reply: ${reply.content.substring(0, reply.content.length.clamp(0, 80))}');
+      } else {
+        debugPrint('[Chat] Got reply: null');
+      }
     } catch (e) {
       debugPrint('[Chat] _send() caught unexpected error: $e');
       reply = null;

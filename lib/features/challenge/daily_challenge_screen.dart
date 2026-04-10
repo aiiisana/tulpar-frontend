@@ -73,9 +73,22 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   void _check() {
-    // Бэкенд не отдаёт correctWord — показываем просто «Ответ отправлен»
-    // (в реальном проекте нужен POST /daily-challenge/submit или поле answer)
-    setState(() => _submitted = true);
+    final answer = _chosen.join().toLowerCase();
+    final correct = (_challenge?.correctWord ?? '').toLowerCase();
+    setState(() {
+      _submitted = true;
+      _isCorrect = correct.isNotEmpty && answer == correct;
+    });
+  }
+
+  /// Суффикс для «N букв» (русское склонение)
+  String _wordSuffix(int n) {
+    final mod10 = n % 10;
+    final mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 19) return '';
+    if (mod10 == 1) return 'а';
+    if (mod10 >= 2 && mod10 <= 4) return 'ы';
+    return '';
   }
 
   void _reset() {
@@ -181,8 +194,14 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
           _imageGrid(ch.imageUrls),
           const SizedBox(height: 24),
 
-          // Собранное слово
+          // Собранное слово (N ячеек по длине слова)
           _answerRow(),
+          const SizedBox(height: 6),
+          Text(
+            '${ch.wordLength} букв${_wordSuffix(ch.wordLength)}',
+            style: const TextStyle(
+                color: AppTheme.textSecondary, fontSize: 12),
+          ),
           const SizedBox(height: 20),
 
           // Буквы
@@ -196,7 +215,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _chosen.isNotEmpty ? _check : null,
+                onPressed: (_chosen.length == (_challenge?.wordLength ?? 0)) ? _check : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -259,53 +278,53 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   // ── Ряд с собранным ответом ───────────────────────────────────────────────
+  // Показывает ровно wordLength ячеек: заполненные — с буквой,
+  // пустые — пунктирная рамка. Нажатие на заполненную ячейку возвращает букву.
 
   Widget _answerRow() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _submitted ? AppTheme.primary : AppTheme.border,
-          width: _submitted ? 1.5 : 1,
-        ),
-      ),
-      child: _chosen.isEmpty
-          ? const Text('Нажмите на буквы...',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 14))
-          : Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 4,
-              children: List.generate(
-                _chosen.length,
-                (i) => GestureDetector(
-                  onTap: () => _removeLetter(i),
-                  child: Container(
-                    width: 34,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppTheme.chipFill,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.primary),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _chosen[i].toUpperCase(),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                          color: AppTheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
+    final wordLen = _challenge?.wordLength ?? 0;
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
+      children: List.generate(wordLen, (i) {
+        final filled = i < _chosen.length;
+        final letter = filled ? _chosen[i].toUpperCase() : '';
+        return GestureDetector(
+          onTap: filled && !_submitted ? () => _removeLetter(i) : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 36,
+            height: 42,
+            decoration: BoxDecoration(
+              color: filled ? AppTheme.chipFill : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: filled ? AppTheme.primary : AppTheme.border,
+                width: filled ? 1.5 : 1,
+              ),
+              boxShadow: filled
+                  ? [
+                      const BoxShadow(
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                          color: Color(0x1A000000))
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                letter,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: filled ? AppTheme.primary : Colors.transparent,
                 ),
               ),
             ),
+          ),
+        );
+      }),
     );
   }
 
@@ -354,31 +373,42 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.chipFill,
+        color: _isCorrect
+            ? const Color(0xFFE8F5E9)
+            : const Color(0xFFFFEBEE),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.primary),
+        border: Border.all(
+            color: _isCorrect ? Colors.green : Colors.red,
+            width: 1.5),
       ),
       child: Column(
         children: [
-          const Icon(Icons.check_circle,
-              color: AppTheme.primary, size: 40),
+          Icon(
+            _isCorrect ? Icons.check_circle : Icons.cancel,
+            color: _isCorrect ? Colors.green : Colors.red,
+            size: 40,
+          ),
           const SizedBox(height: 10),
           Text(
-            'Ваш ответ: ${_chosen.join().toUpperCase()}',
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 16),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Ответ принят! Следите за результатами.',
+            _isCorrect ? 'Дұрыс! 🎉' : 'Дұрыс емес',
             style: TextStyle(
-                color: AppTheme.textSecondary, fontSize: 13),
-            textAlign: TextAlign.center,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                color: _isCorrect ? Colors.green : Colors.red),
           ),
+          if (!_isCorrect &&
+              (_challenge?.correctWord ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Дұрыс жауап: ${_challenge!.correctWord!.toUpperCase()}',
+              style: const TextStyle(
+                  fontSize: 14, color: AppTheme.textSecondary),
+            ),
+          ],
           const SizedBox(height: 14),
           TextButton(
             onPressed: _reset,
-            child: const Text('Попробовать снова',
+            child: const Text('Қайталау',
                 style: TextStyle(color: AppTheme.primary)),
           ),
         ],

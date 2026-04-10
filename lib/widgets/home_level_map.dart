@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../app/app_storage.dart';
 import '../app/theme.dart';
 import '../features/lesson/exercise_screen.dart';
-import '../features/lessons/lesson_flow_screen.dart';
 import '../models/level_map_node.dart';
 import '../services/lesson_service.dart';
 
@@ -19,21 +18,18 @@ const double _kBottomMargin = 80.0;
 // ── Internal data model ───────────────────────────────────────────────────────
 
 class _MapLesson {
-  /// null = оффлайн-фоллбэк, non-null = реальный урок с бэкенда
   final String? backendId;
-  final int fallbackIndex;   // используется только при backendId == null
+  final int fallbackIndex;
   final String title;
-  final String subtitleKk;
-  final String description;
   final bool unlocked;
+  final bool completed;
 
   const _MapLesson({
     this.backendId,
     required this.fallbackIndex,
     required this.title,
-    required this.subtitleKk,
-    required this.description,
     required this.unlocked,
+    this.completed = false,
   });
 
   bool get isBackend => backendId != null;
@@ -161,17 +157,44 @@ class _LevelPathPainter extends CustomPainter {
 class HomeLevelMap extends StatefulWidget {
   const HomeLevelMap({super.key});
 
-  /// Открыть первый доступный урок (вызывается кнопкой «Начать урок»)
+  /// Открыть первый доступный урок (вызывается кнопкой «Начать урок»).
+  /// Берёт первый незавершённый урок с бэкенда; если бэк недоступен — показывает сообщение.
   static Future<void> openRecommendedLesson(BuildContext context) async {
-    final done = await AppStorage.getCompletedLessons();
-    for (final node in _kFallback) {
-      if (done.contains(node.lessonIndex)) continue;
-      if (await AppStorage.isLessonUnlocked(node.lessonIndex)) {
-        await LessonFlowScreen.open(context, node);
-        return;
+    try {
+      final courses = await LessonService.getCourses();
+      if (courses.isEmpty) { _noLessonsSnack(context); return; }
+      final levels = await LessonService.getCourseLevels(courses.first.id);
+      for (final level in levels) {
+        for (final lesson in level.lessons) {
+          if (lesson.unlocked && !lesson.completed) {
+            if (!context.mounted) return;
+            await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ExerciseScreen(lessonId: lesson.id, lessonTitle: lesson.title),
+            ));
+            return;
+          }
+        }
       }
+      // Все завершены — открываем последний
+      final allLessons = levels.expand((l) => l.lessons).toList();
+      if (allLessons.isNotEmpty && context.mounted) {
+        await Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ExerciseScreen(
+            lessonId: allLessons.last.id,
+            lessonTitle: allLessons.last.title,
+          ),
+        ));
+      }
+    } catch (_) {
+      if (context.mounted) _noLessonsSnack(context);
     }
-    await LessonFlowScreen.open(context, _kFallback.last);
+  }
+
+  static void _noLessonsSnack(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Уроки недоступны. Проверьте подключение.'),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override
@@ -225,15 +248,12 @@ class HomeLevelMapState extends State<HomeLevelMap> {
       return allLessons.asMap().entries.map((entry) {
         final i = entry.key;
         final lesson = entry.value;
-        // Первый урок всегда разблокирован
-        final isFirst = i == 0;
         return _MapLesson(
           backendId: lesson.id,
           fallbackIndex: i + 1,
           title: lesson.title,
-          subtitleKk: lesson.title,
-          description: '${lesson.xpReward} XP',
-          unlocked: isFirst || lesson.unlocked,
+          unlocked: i == 0 || lesson.unlocked,
+          completed: lesson.completed,
         );
       }).toList();
     } catch (_) {
@@ -251,9 +271,8 @@ class HomeLevelMapState extends State<HomeLevelMap> {
         backendId: null,
         fallbackIndex: node.lessonIndex,
         title: node.title,
-        subtitleKk: node.subtitleKk,
-        description: node.description,
         unlocked: prevDone,
+        completed: done.contains(node.lessonIndex),
       );
     }).toList();
   }
@@ -264,10 +283,9 @@ class HomeLevelMapState extends State<HomeLevelMap> {
     final kinds = <_SegmentKind>[];
     for (var s = 0; s < _lessons.length - 1; s++) {
       final curr = _lessons[s];
-      final next = _lessons[s + 1];
       if (!curr.unlocked) {
         kinds.add(_SegmentKind.locked);
-      } else if (next.unlocked) {
+      } else if (curr.completed) {
         kinds.add(_SegmentKind.completed);
       } else {
         kinds.add(_SegmentKind.next);
@@ -294,7 +312,7 @@ class HomeLevelMapState extends State<HomeLevelMap> {
     if (!mounted) return;
 
     if (lesson.isBackend) {
-      // Реальный урок с бэкенда
+      // Реальный урок с бэкенда → сразу в ExerciseScreen
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -305,12 +323,30 @@ class HomeLevelMapState extends State<HomeLevelMap> {
         ),
       );
     } else {
-      // Оффлайн-фоллбэк
-      final node = _kFallback.firstWhere(
-        (n) => n.lessonIndex == lesson.fallbackIndex,
-        orElse: () => _kFallback.first,
-      );
-      await LessonFlowScreen.open(context, node);
+      // Оффлайн-фоллбэк: пробуем загрузить урок с бэкенда
+      try {
+        final courses = await LessonService.getCourses();
+        if (courses.isNotEmpty) {
+          final levels = await LessonService.getCourseLevels(courses.first.id);
+          final allLessons = levels.expand((l) => l.lessons).toList();
+          final idx = lesson.fallbackIndex - 1;
+          if (idx < allLessons.length && mounted) {
+            await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ExerciseScreen(
+                lessonId: allLessons[idx].id,
+                lessonTitle: allLessons[idx].title,
+              ),
+            ));
+          }
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Уроки недоступны. Проверьте подключение.'),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
     }
 
     await reloadProgress();
@@ -454,12 +490,25 @@ class _NodeBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locked    = !lesson.unlocked;
-    final completed = false; // серверная разблокировка определяется через unlocked следующего
+    final completed = lesson.completed;
 
-    final borderColor = locked
-        ? AppTheme.border
-        : const Color(0xFFC9E85C);
-    final borderW = locked ? 2.0 : 3.0;
+    final Color borderColor;
+    final double borderW;
+    final Color bgColor;
+
+    if (locked) {
+      borderColor = AppTheme.border;
+      borderW     = 2.0;
+      bgColor     = Colors.white;
+    } else if (completed) {
+      borderColor = AppTheme.primary;
+      borderW     = 3.0;
+      bgColor     = AppTheme.primary.withOpacity(0.08);
+    } else {
+      borderColor = const Color(0xFFC9E85C);
+      borderW     = 3.0;
+      bgColor     = Colors.white;
+    }
 
     return Material(
       color: Colors.transparent,
@@ -471,14 +520,15 @@ class _NodeBubble extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
+              color: bgColor,
               border: Border.all(color: borderColor, width: borderW),
               boxShadow: [
                 if (!locked)
                   BoxShadow(
                     blurRadius: 14,
                     spreadRadius: 0,
-                    color: const Color(0xFFC9E85C).withOpacity(0.4),
+                    color: (completed ? AppTheme.primary : const Color(0xFFC9E85C))
+                        .withOpacity(0.35),
                   ),
                 const BoxShadow(
                   blurRadius: 10,
@@ -489,29 +539,26 @@ class _NodeBubble extends StatelessWidget {
             ),
             child: Center(
               child: locked
-                  ? Icon(
-                      Icons.lock_outline,
-                      color: AppTheme.primary.withOpacity(0.65),
-                      size: 26,
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${index + 1}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            color: AppTheme.textPrimary,
-                          ),
+                  ? Icon(Icons.lock_outline,
+                      color: AppTheme.primary.withOpacity(0.65), size: 26)
+                  : completed
+                      ? const Icon(Icons.check_rounded,
+                          color: AppTheme.primary, size: 30)
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${index + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const Icon(Icons.star_rounded,
+                                color: Color(0xFF8FAF3A), size: 22),
+                          ],
                         ),
-                        const Icon(
-                          Icons.star_rounded,
-                          color: Color(0xFF8FAF3A),
-                          size: 22,
-                        ),
-                      ],
-                    ),
             ),
           ),
         ),

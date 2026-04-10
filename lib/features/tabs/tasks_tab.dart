@@ -27,6 +27,7 @@ class _TasksTabState extends State<TasksTab> {
 
   // Result state
   bool _submitted = false;
+  bool _isCorrect = false;
 
   @override
   void initState() {
@@ -83,7 +84,12 @@ class _TasksTabState extends State<TasksTab> {
 
   void _check() {
     if (_slots.isEmpty) return;
-    setState(() => _submitted = true);
+    final answer = _slots.join().toLowerCase();
+    final correct = (_challenge?.correctWord ?? '').toLowerCase();
+    setState(() {
+      _submitted = true;
+      _isCorrect = correct.isNotEmpty && answer == correct;
+    });
   }
 
   void _reset() {
@@ -93,6 +99,7 @@ class _TasksTabState extends State<TasksTab> {
       _pool = List.from(ch.letters);
       _slots = [];
       _submitted = false;
+      _isCorrect = false;
     });
   }
 
@@ -167,7 +174,7 @@ class _TasksTabState extends State<TasksTab> {
 
   Widget _challengeBody(AppStr s) {
     final ch = _challenge!;
-    final targetLen = ch.letters.length;
+    final targetLen = ch.wordLength > 0 ? ch.wordLength : ch.letters.length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
@@ -307,33 +314,46 @@ class _TasksTabState extends State<TasksTab> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppTheme.chipFill,
+                      color: _isCorrect
+                          ? const Color(0xFFE8F5E9)
+                          : const Color(0xFFFFEBEE),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.primary),
+                      border: Border.all(
+                          color: _isCorrect ? Colors.green : Colors.red),
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.check_circle,
-                            color: AppTheme.primary, size: 36),
+                        Icon(
+                          _isCorrect
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: _isCorrect ? Colors.green : Colors.red,
+                          size: 36,
+                        ),
                         const SizedBox(height: 8),
                         Text(
-                          'Ваш ответ: ${_slots.join().toUpperCase()}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Ответ принят! Следите за результатами.',
+                          _isCorrect ? 'Дұрыс! 🎉' : 'Дұрыс емес',
                           style: TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 12),
-                          textAlign: TextAlign.center,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              color: _isCorrect
+                                  ? Colors.green
+                                  : Colors.red),
                         ),
+                        if (!_isCorrect &&
+                            (_challenge?.correctWord ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Дұрыс жауап: ${_challenge!.correctWord!.toUpperCase()}',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         TextButton(
                           onPressed: _reset,
-                          child: const Text('Попробовать снова',
+                          child: const Text('Қайталау',
                               style:
                                   TextStyle(color: AppTheme.primary)),
                         ),
@@ -345,7 +365,7 @@ class _TasksTabState extends State<TasksTab> {
                 if (!_submitted) ...[
                   const SizedBox(height: 14),
                   ElevatedButton(
-                    onPressed: _slots.isNotEmpty ? _check : null,
+                    onPressed: (_slots.length == targetLen) ? _check : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,

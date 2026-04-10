@@ -67,6 +67,9 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _goNextAfterAuth() async {
+    // Сохраняем флаг сессии
+    await AppStorage.setLoggedIn(true);
+
     // Отправляем уровень + цель на бэкенд.
     // Вызываем здесь — к этому моменту Firebase-токен уже есть,
     // и ApiClient может добавить Authorization: Bearer <token>.

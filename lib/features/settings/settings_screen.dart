@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../app/app_storage.dart';
 import '../../app/app_strings.dart';
@@ -165,6 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () async {
                     await AppStorage.logout();
+                    await FirebaseAuth.instance.signOut();
                     if (!context.mounted) return;
                     Navigator.pushAndRemoveUntil(
                       context,

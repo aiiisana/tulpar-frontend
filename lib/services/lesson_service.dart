@@ -81,6 +81,7 @@ class LessonModel {
   final int orderIndex;
   final int xpReward;
   final bool unlocked;
+  final bool completed;
   final List<ExerciseModel> exercises;
 
   LessonModel({
@@ -89,6 +90,7 @@ class LessonModel {
     required this.orderIndex,
     required this.xpReward,
     required this.unlocked,
+    this.completed = false,
     this.exercises = const [],
   });
 
@@ -100,6 +102,7 @@ class LessonModel {
       orderIndex: (j['orderIndex'] as num?)?.toInt() ?? 0,
       xpReward:   (j['xpReward'] as num?)?.toInt() ?? 0,
       unlocked:   j['unlocked'] as bool? ?? false,
+      completed:  j['completed'] as bool? ?? false,
       exercises:  rawExercises
           .map((e) => ExerciseModel.fromJson(e as Map<String, dynamic>))
           .toList(),

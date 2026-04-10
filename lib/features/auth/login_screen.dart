@@ -59,6 +59,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // После успешного входа в Firebase идём к PIN-экрану
   Future<void> _goNextAfterAuth() async {
+    // Сохраняем флаг сессии — чтобы при следующем запуске не показывать онбординг
+    await AppStorage.setLoggedIn(true);
     final hasPin = await SecurityService().hasPin();
     if (!mounted) return;
     Navigator.pushReplacement(

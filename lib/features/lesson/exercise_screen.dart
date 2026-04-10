@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../services/lesson_service.dart';
@@ -37,10 +38,17 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   // Для multiple-choice
   String? _selectedOption;
 
+  // Аудиоплеер для LISTENING
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  PlayerState _audioState = PlayerState.stopped;
+
   @override
   void initState() {
     super.initState();
     _load();
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _audioState = state);
+    });
   }
 
   Future<void> _load() async {
@@ -53,13 +61,41 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
   void _prepareExercise(ExerciseModel ex) {
     _submitted = false;
     _lastCorrect = null;
     _selectedOption = null;
+    _audioPlayer.stop();
+    _audioState = PlayerState.stopped;
     if (ex.type == ExerciseType.SENTENCE_BUILDER) {
       _remainingWords = List.from(ex.shuffledWords);
       _chosenWords = [];
+    }
+  }
+
+  Future<void> _playAudio(String url) async {
+    try {
+      if (_audioState == PlayerState.playing) {
+        await _audioPlayer.stop();
+      } else {
+        // Поддерживаем как http/https URL, так и assets пути
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          await _audioPlayer.play(UrlSource(url));
+        } else {
+          // Относительный путь — пробуем как URL через базовый адрес API
+          final apiBase = const String.fromEnvironment(
+            'API_BASE', defaultValue: 'http://localhost:8080');
+          await _audioPlayer.play(UrlSource('$apiBase$url'));
+        }
+      }
+    } catch (e) {
+      debugPrint('[Audio] play error: $e');
     }
   }
 
@@ -191,6 +227,12 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           const SizedBox(height: 18),
         ],
 
+        // Аудиоплеер (если LISTENING)
+        if (ex.type == ExerciseType.LISTENING && ex.audioUrl != null) ...[
+          _audioPlayerWidget(ex.audioUrl!),
+          const SizedBox(height: 18),
+        ],
+
         Text(
           question,
           style:
@@ -210,6 +252,79 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           _explanationBox(ex.explanation!),
         ],
       ],
+    );
+  }
+
+  // ── Audio player widget ───────────────────────────────────────────────────
+
+  Widget _audioPlayerWidget(String audioUrl) {
+    final isPlaying = _audioState == PlayerState.playing;
+    return GestureDetector(
+      onTap: () => _playAudio(audioUrl),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          color: isPlaying
+              ? AppTheme.primary.withOpacity(0.12)
+              : AppTheme.chipFill,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isPlaying ? AppTheme.primary : AppTheme.border,
+            width: isPlaying ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: isPlaying ? AppTheme.primary : Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: const [
+                  BoxShadow(
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                    color: Color(0x1A000000),
+                  ),
+                ],
+              ),
+              child: Icon(
+                isPlaying
+                    ? Icons.stop_rounded
+                    : Icons.play_arrow_rounded,
+                color: isPlaying ? Colors.white : AppTheme.primary,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isPlaying ? 'Воспроизводится...' : 'Нажмите для прослушивания',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: isPlaying ? AppTheme.primary : AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Аудирование',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

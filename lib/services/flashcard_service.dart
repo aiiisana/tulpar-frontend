@@ -36,11 +36,17 @@ class FlashcardService {
         '/flashcards',
         params: {'page': page, 'size': size},
       );
-      // Backend returns PageResponse<FlashcardResponse>
-      final Map<String, dynamic> data = response.data as Map<String, dynamic>;
-      final List<dynamic> content = data['content'] as List<dynamic>? ?? [];
+
+      if (response.data is! Map<String, dynamic>) {
+        debugPrint('Unexpected response format: ${response.data}');
+        return [];
+      }
+
+      final data = response.data as Map<String, dynamic>;
+      final List content = data['content'] ?? [];
+
       return content
-          .map((item) => FlashcardModel.fromJson(item as Map<String, dynamic>))
+          .map((item) => FlashcardModel.fromJson(item))
           .toList();
     } catch (e) {
       debugPrint('Error fetching flashcards: $e');
