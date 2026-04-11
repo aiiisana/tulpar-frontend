@@ -98,7 +98,7 @@ class AppStr {
   String get learnArticles => en ? 'Articles' : 'Статьи';
   String get learnAi => en ? 'AI assistant' : 'ИИ помощник';
   String get learnGrammar => en ? 'Grammar' : 'Грамматика';
-  String get learnSample => en ? 'Sample' : 'sample';
+  String get learnSample => en ? 'Alphabet' : 'Алфавит';
 
   String get taskOfTheDay => en ? 'Task of the day' : 'Задание дня';
   String get taskOfTheDayHint =>

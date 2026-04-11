@@ -92,9 +92,9 @@ class _SavedWordsScreenState extends State<SavedWordsScreen> {
                     );
                   }
                   return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                     itemCount: rows.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, i) {
                       final r = rows[i];
                       return Dismissible(
@@ -110,40 +110,52 @@ class _SavedWordsScreenState extends State<SavedWordsScreen> {
                           child: Icon(Icons.delete_outline, color: Colors.red.shade700),
                         ),
                         onDismissed: (_) => _remove(r.id),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppTheme.border),
-                            boxShadow: [
-                              BoxShadow(
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                                color: Colors.black.withOpacity(0.05),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                r.kazakh,
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                              ),
-                              if (r.pronunciation.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  r.pronunciation,
-                                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 118,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppTheme.border),
+                              boxShadow: [
+                                BoxShadow(
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                  color: Colors.black.withOpacity(0.05),
                                 ),
                               ],
-                              const SizedBox(height: 8),
-                              Text(
-                                r.russian,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
-                            ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  r.kazakh,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                                ),
+                                if (r.pronunciation.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    r.pronunciation,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                                const SizedBox(height: 6),
+                                Text(
+                                  r.russian,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );

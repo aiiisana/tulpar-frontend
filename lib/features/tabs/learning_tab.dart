@@ -6,7 +6,7 @@ import '../learning_content/ai_assistant_screen.dart';
 import '../learning_content/articles_screen.dart';
 import '../learning_content/flashcards_screen.dart';
 import '../learning_content/grammar_screen.dart';
-import '../learning_content/sample_module_screen.dart';
+import '../learning_content/alphabet_module_screen.dart';
 import '../learning_content/speaking_clubs_screen.dart';
 
 class LearningTab extends StatelessWidget {
@@ -32,8 +32,8 @@ class LearningTab extends StatelessWidget {
     Navigator.push(c, MaterialPageRoute(builder: (_) => const GrammarScreen()));
   }
 
-  static void _openSample(BuildContext c) {
-    Navigator.push(c, MaterialPageRoute(builder: (_) => const SampleModuleScreen()));
+  static void _openAlphabet(BuildContext c) {
+    Navigator.push(c, MaterialPageRoute(builder: (_) => const AlphabetModuleScreen()));
   }
 
   @override
@@ -46,7 +46,7 @@ class LearningTab extends StatelessWidget {
       _LearningItem(title: s.learnArticles, imagePath: 'assets/images/articles.png', builder: _openArticles),
       _LearningItem(title: s.learnAi, imagePath: 'assets/images/ai_assistant.png', builder: _openAi),
       _LearningItem(title: s.learnGrammar, imagePath: 'assets/images/grammar.png', builder: _openGrammar),
-      _LearningItem(title: s.learnSample, imagePath: 'assets/images/clubs.png', builder: _openSample),
+      _LearningItem(title: s.learnSample, imagePath: 'assets/images/grammar.png', builder: _openAlphabet),
     ];
 
     return Padding(

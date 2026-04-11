@@ -13,7 +13,6 @@ import 'notifications_screen.dart';
 import 'privacy_security_hub_screen.dart';
 import 'terms_screen.dart';
 import '../../services/settings_service.dart';
-import 'security_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
