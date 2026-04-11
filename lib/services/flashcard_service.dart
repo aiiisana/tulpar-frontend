@@ -55,7 +55,57 @@ class FlashcardService {
           .toList();
     } catch (e) {
       debugPrint('FlashcardService: error fetching flashcards: $e');
-      return null; // null = network/server error; callers must show error UI
+      return null;
+    }
+  }
+
+  /// GET /flashcards/saved — список сохранённых карточек пользователя.
+  static Future<List<FlashcardModel>?> getSaved() async {
+    try {
+      final response = await _apiClient.get('/flashcards/saved');
+      final List data = response.data is List
+          ? response.data as List
+          : ((response.data as Map<String, dynamic>)['content'] as List? ?? []);
+      return data
+          .map((e) => FlashcardModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('FlashcardService: getSaved failed: $e');
+      return null;
+    }
+  }
+
+  /// GET /flashcards/{id}/saved — проверяет, сохранена ли карточка.
+  static Future<bool> isSaved(String id) async {
+    try {
+      final response = await _apiClient.get('/flashcards/$id/saved');
+      final data = response.data;
+      if (data is bool) return data;
+      if (data is Map<String, dynamic>) return data['saved'] as bool? ?? false;
+      return false;
+    } catch (e) {
+      debugPrint('FlashcardService: isSaved failed: $e');
+      return false;
+    }
+  }
+
+  /// POST /flashcards/{id}/save — сохраняет карточку.
+  static Future<void> save(String id) async {
+    try {
+      await _apiClient.post('/flashcards/$id/save');
+    } catch (e) {
+      debugPrint('FlashcardService: save failed: $e');
+      rethrow;
+    }
+  }
+
+  /// DELETE /flashcards/{id}/save — убирает карточку из сохранённых.
+  static Future<void> unsave(String id) async {
+    try {
+      await _apiClient.delete('/flashcards/$id/save');
+    } catch (e) {
+      debugPrint('FlashcardService: unsave failed: $e');
+      rethrow;
     }
   }
 }

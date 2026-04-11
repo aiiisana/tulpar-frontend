@@ -23,17 +23,11 @@ class SpeakingClubsScreen extends StatelessWidget {
                     child: Text(
                       'Разговорные клубы для новичков',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ClubAgreementScreen()),
-                      );
-                    },
-                    child: const Text('Соглашение', style: TextStyle(fontSize: 12)),
                   ),
                 ],
               ),
@@ -52,13 +46,15 @@ class SpeakingClubsScreen extends StatelessWidget {
                   SizedBox(height: 12),
                   _ClubCard(
                     titleKk: 'Сәлемдесу және танысу',
-                    description: 'Практика приветствий и знакомства: шаблоны фраз и мини-диалоги.',
+                    description:
+                        'Практика приветствий и знакомства: шаблоны фраз и мини-диалоги.',
                     time: 'в 18:00',
                   ),
                   SizedBox(height: 12),
                   _ClubCard(
                     titleKk: 'Қазақ тілінде сұрақ-жауап',
-                    description: 'Вопросы и ответы: «не істедің?», «қайда бардың?» и ответы по уровню.',
+                    description:
+                        'Вопросы и ответы: «не істедің?», «қайда бардың?» и ответы по уровню.',
                     time: 'в 20:00',
                   ),
                 ],
@@ -100,23 +96,47 @@ class _ClubCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(titleKk, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(
+            titleKk,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 8),
-          Text(description, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.35)),
+          Text(
+            description,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+              height: 1.35,
+            ),
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
-              Text(time, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
               FilledButton(
                 onPressed: () {},
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
-                child: const Text('Войти', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                child: const Text(
+                  'Войти',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
               ),
             ],
           ),

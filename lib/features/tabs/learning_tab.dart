@@ -7,7 +7,7 @@ import '../learning_content/articles_screen.dart';
 import '../learning_content/flashcards_screen.dart';
 import '../learning_content/grammar_screen.dart';
 import '../learning_content/alphabet_module_screen.dart';
-import '../learning_content/speaking_clubs_screen.dart';
+import '../learning_content/club_agreement_screen.dart';
 
 class LearningTab extends StatelessWidget {
   const LearningTab({super.key});
@@ -17,7 +17,7 @@ class LearningTab extends StatelessWidget {
   }
 
   static void _openClubs(BuildContext c) {
-    Navigator.push(c, MaterialPageRoute(builder: (_) => const SpeakingClubsScreen()));
+    Navigator.push(c, MaterialPageRoute(builder: (_) => const ClubAgreementScreen()));
   }
 
   static void _openArticles(BuildContext c) {

@@ -75,21 +75,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
     debugPrint('[Chat] Sending message to AI: "$text"');
 
+    // ChatService handles retries (up to 2 attempts, 90 s each)
     ChatMessageModel? reply;
     try {
-      // Backend AI call — may take up to ~90 s (OpenAI timeout 60 s + network)
-      reply = await ChatService.sendMessage(text)
-          .timeout(
-            const Duration(seconds: 90),
-            onTimeout: () {
-              debugPrint('[Chat] sendMessage timed out after 90 s');
-              return null;
-            },
-          );
+      reply = await ChatService.sendMessage(text);
       if (reply != null) {
         debugPrint('[Chat] Got reply: ${reply.content.substring(0, reply.content.length.clamp(0, 80))}');
       } else {
-        debugPrint('[Chat] Got reply: null');
+        debugPrint('[Chat] Got null reply after all retries');
       }
     } catch (e) {
       debugPrint('[Chat] _send() caught unexpected error: $e');

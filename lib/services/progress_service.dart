@@ -11,6 +11,10 @@ class ProgressResult {
   final int attempts;
   /// XP awarded for this submission — 0 when answer was wrong.
   final int xpEarned;
+  /// The correct answer returned by the server after submission.
+  /// Null for exercise types where the server cannot determine a
+  /// canonical answer (e.g. AI_GENERATED).
+  final String? correctAnswer;
 
   ProgressResult({
     required this.progressId,
@@ -19,15 +23,17 @@ class ProgressResult {
     required this.status,
     required this.attempts,
     this.xpEarned = 0,
+    this.correctAnswer,
   });
 
   factory ProgressResult.fromJson(Map<String, dynamic> j) => ProgressResult(
-        progressId: j['progressId'] as String? ?? '',
-        exerciseId: j['exerciseId'] as String? ?? '',
-        correct:    j['correct'] as bool? ?? false,
-        status:     j['status'] as String? ?? 'IN_PROGRESS',
-        attempts:   (j['attempts'] as num?)?.toInt() ?? 1,
-        xpEarned:   (j['xpEarned'] as num?)?.toInt() ?? 0,
+        progressId:    j['progressId']    as String? ?? '',
+        exerciseId:    j['exerciseId']    as String? ?? '',
+        correct:       j['correct']       as bool?   ?? false,
+        status:        j['status']        as String? ?? 'IN_PROGRESS',
+        attempts:      (j['attempts']     as num?)?.toInt() ?? 1,
+        xpEarned:      (j['xpEarned']     as num?)?.toInt() ?? 0,
+        correctAnswer: j['correctAnswer'] as String?,
       );
 }
 

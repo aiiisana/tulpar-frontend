@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../app/app_storage.dart';
 import '../../app/theme.dart';
+import '../../services/flashcard_service.dart';
 import '../../widgets/circle_back_button.dart';
 
 class SavedWordsScreen extends StatefulWidget {
@@ -20,15 +20,15 @@ class _SavedWordsScreenState extends State<SavedWordsScreen> {
   }
 
   Future<List<_SavedRow>> _fetch() async {
-    final list = await AppStorage.getSavedWords();
-    list.sort((a, b) => b.savedAtMs.compareTo(a.savedAtMs));
+    final list = await FlashcardService.getSaved();
+    if (list == null) return [];
     return list
         .map(
-          (w) => _SavedRow(
-            id: w.id,
-            kazakh: w.kazakh,
-            pronunciation: w.pronunciation,
-            russian: w.russian,
+          (m) => _SavedRow(
+            id: m.id,
+            kazakh: m.wordKz,
+            pronunciation: m.transcription ?? '',
+            russian: m.wordRu,
           ),
         )
         .toList();
@@ -39,7 +39,7 @@ class _SavedWordsScreenState extends State<SavedWordsScreen> {
   }
 
   Future<void> _remove(String id) async {
-    await AppStorage.removeSavedFlashcard(id);
+    await FlashcardService.unsave(id);
     await _refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

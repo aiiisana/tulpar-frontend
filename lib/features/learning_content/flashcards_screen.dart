@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../app/app_storage.dart';
 import '../../app/theme.dart';
 import '../../models/flashcard_item.dart';
-import '../../models/saved_flashcard.dart';
 import '../../services/flashcard_service.dart';
 import '../../widgets/circle_back_button.dart';
 import 'saved_words_screen.dart';
@@ -80,7 +78,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   Future<void> _syncStar() async {
     if (_deck.isEmpty) return;
-    final saved = await AppStorage.isFlashcardSaved(_current.id);
+    final saved = await FlashcardService.isSaved(_current.id);
     if (!mounted) return;
     setState(() => _starFilled = saved);
   }
@@ -98,14 +96,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     setState(() => _starBusy = true);
     try {
       if (_starFilled) {
-        await AppStorage.removeSavedFlashcard(_current.id);
+        await FlashcardService.unsave(_current.id);
         if (!mounted) return;
         setState(() => _starFilled = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Убрано из сохранённых')),
         );
       } else {
-        await AppStorage.saveFlashcard(SavedFlashcard.fromFlashcard(_current));
+        await FlashcardService.save(_current.id);
         if (!mounted) return;
         setState(() => _starFilled = true);
         ScaffoldMessenger.of(context).showSnackBar(

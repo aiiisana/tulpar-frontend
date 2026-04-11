@@ -26,7 +26,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final goals = const [15, 30, 45, 60, 90, 120];
+    final goals = const [2, 5, 10, 15, 20, 25];
 
     return Scaffold(
       body: SafeArea(
@@ -62,7 +62,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
                     SizedBox(
                       width: 92,
                       child: SelectPill(
-                        text: '$m min',
+                        text: '$m мин',
                         leading: null,
                         selected: selected == m,
                         onTap: () async {
@@ -75,7 +75,7 @@ class _DailyGoalScreenState extends State<DailyGoalScreen> {
                   SizedBox(
                     width: 92,
                     child: SelectPill(
-                      text: 'Other',
+                      text: 'Другое',
                       leading: null,
                       selected: selected == -1,
                       onTap: () => setState(() => selected = -1),

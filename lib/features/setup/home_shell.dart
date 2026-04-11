@@ -17,11 +17,11 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
 
-  final pages = const [
-    HomeTab(),
-    LearningTab(),
-    TasksTab(),
-    ProfileTab(),
+  late final List<Widget> pages = [
+    HomeTab(onProfileTap: () => setState(() => index = 3)),
+    const LearningTab(),
+    const TasksTab(),
+    const ProfileTab(),
   ];
 
   @override

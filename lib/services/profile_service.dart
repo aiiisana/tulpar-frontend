@@ -94,6 +94,19 @@ class ProfileService {
     }
   }
 
+  /// POST /onboarding/level — меняет уровень сложности.
+  /// [level] — одно из: BEGINNER, ELEMENTARY, INTERMEDIATE, ADVANCED.
+  /// Идемпотентен: вызывать можно повторно (OnboardingService.setLevel просто
+  /// перезаписывает user.level в БД).
+  static Future<void> updateLevel(String level) async {
+    try {
+      await _api.post('/onboarding/level', data: {'level': level});
+    } catch (e) {
+      debugPrint('[Profile] updateLevel failed: $e');
+      rethrow; // пробрасываем, чтобы UI мог показать snackbar об ошибке
+    }
+  }
+
   /// POST /onboarding/goal — меняет ежедневную цель.
   /// Бэкенд не предоставляет PUT /profile для dailyGoal,
   /// поэтому используем /onboarding/goal (идемпотентен, вызывать можно повторно).

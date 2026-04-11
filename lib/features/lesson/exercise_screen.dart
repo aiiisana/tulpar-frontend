@@ -1,5 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import '../../app/theme.dart';
 import '../../services/lesson_service.dart';
 import '../../services/progress_service.dart';
@@ -42,8 +44,16 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   PlayerState _audioState = PlayerState.stopped;
 
+  // Видеоплеер для VIDEO_CONTEXT
+  VideoPlayerController? _videoController;
+  ChewieController?      _chewieController;
+  bool _videoInitializing = false;
+  String? _videoError;
+
   // XP earned on the last submitted exercise
   int _lastXpEarned = 0;
+  // Correct answer returned by the server after submission (null until first submit)
+  String? _lastCorrectAnswer;
 
   @override
   void initState() {
@@ -67,18 +77,76 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _disposeVideo();
     super.dispose();
+  }
+
+  void _disposeVideo() {
+    _chewieController?.dispose();
+    _videoController?.dispose();
+    _chewieController = null;
+    _videoController  = null;
   }
 
   void _prepareExercise(ExerciseModel ex) {
     _submitted = false;
     _lastCorrect = null;
+    _lastCorrectAnswer = null;
     _selectedOption = null;
     _audioPlayer.stop();
     _audioState = PlayerState.stopped;
+
+    // Dispose previous video before creating new one
+    _disposeVideo();
+    _videoError = null;
+
     if (ex.type == ExerciseType.SENTENCE_BUILDER) {
       _remainingWords = List.from(ex.shuffledWords);
       _chosenWords = [];
+    }
+
+    if (ex.type == ExerciseType.VIDEO_CONTEXT && ex.videoUrl != null) {
+      _initVideo(ex.videoUrl!);
+    }
+  }
+
+  Future<void> _initVideo(String rawUrl) async {
+    final url = _resolveUrl(rawUrl);
+    setState(() {
+      _videoInitializing = true;
+      _videoError = null;
+    });
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      await controller.initialize();
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      final chewie = ChewieController(
+        videoPlayerController: controller,
+        autoPlay: true,
+        looping: false,
+        allowFullScreen: true,
+        allowMuting: true,
+        showControlsOnInitialize: false,
+        aspectRatio: controller.value.aspectRatio,
+        errorBuilder: (ctx, msg) => Center(
+          child: Text(msg, style: const TextStyle(color: Colors.white)),
+        ),
+      );
+      setState(() {
+        _videoController    = controller;
+        _chewieController   = chewie;
+        _videoInitializing  = false;
+      });
+    } catch (e) {
+      debugPrint('[Video] init error: $e');
+      if (!mounted) return;
+      setState(() {
+        _videoInitializing = false;
+        _videoError = 'Не удалось загрузить видео';
+      });
     }
   }
 
@@ -115,8 +183,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
     if (!mounted) return;
     setState(() {
-      _lastCorrect = result?.correct ?? false;
-      _lastXpEarned = result?.xpEarned ?? 0;
+      _lastCorrect       = result?.correct ?? false;
+      _lastXpEarned      = result?.xpEarned ?? 0;
+      _lastCorrectAnswer = result?.correctAnswer;
       if (_lastCorrect == true) _correctCount++;
     });
   }
@@ -192,12 +261,84 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
             child: switch (ex.type) {
               ExerciseType.SENTENCE_BUILDER => _sentenceBuilder(ex),
-              _ => _multipleChoice(ex),
+              ExerciseType.VIDEO_CONTEXT    => _videoExercise(ex),
+              _                             => _multipleChoice(ex),
             },
           ),
         ),
         // Обратная связь + кнопка «Дальше»
         if (_submitted) _feedbackBar(),
+      ],
+    );
+  }
+
+  // ── Video exercise (VIDEO_CONTEXT) ───────────────────────────────────────
+
+  Widget _videoExercise(ExerciseModel ex) {
+    final question = ex.question ?? 'Посмотрите видео и выберите ответ';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Плеер
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: AspectRatio(
+            aspectRatio: _videoController?.value.aspectRatio ?? 16 / 9,
+            child: _videoInitializing
+                ? Container(
+                    color: Colors.black,
+                    child: const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                  )
+                : _videoError != null
+                    ? Container(
+                        color: Colors.black87,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.videocam_off,
+                                  color: Colors.white54, size: 48),
+                              const SizedBox(height: 10),
+                              Text(_videoError!,
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      )
+                    : _chewieController != null
+                        ? Chewie(controller: _chewieController!)
+                        : Container(
+                            color: Colors.black,
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                  color: Colors.white),
+                            ),
+                          ),
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        Text(
+          question,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 20),
+
+        if (ex.options.isEmpty)
+          const Text('Нет вариантов ответа',
+              style: TextStyle(color: AppTheme.textSecondary))
+        else
+          ...ex.options.map((opt) => _optionTile(opt)),
+
+        if (_submitted && ex.explanation != null) ...[
+          const SizedBox(height: 16),
+          _explanationBox(ex.explanation!),
+        ],
       ],
     );
   }
@@ -509,12 +650,16 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   Widget _feedbackBar() {
     final correct = _lastCorrect == true;
+    final hasCorrectAnswer =
+        !correct && _lastCorrectAnswer != null && _lastCorrectAnswer!.isNotEmpty;
+
     return Container(
       color: correct
           ? const Color(0xFFE8F5E9)
           : const Color(0xFFFFEBEE),
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
             correct ? Icons.check_circle : Icons.cancel,
@@ -529,6 +674,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ── Верно / Неверно ──────────────────────────────────
                 Text(
                   correct ? 'Верно!' : 'Неверно',
                   style: TextStyle(
@@ -539,7 +685,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                         : const Color(0xFFC62828),
                   ),
                 ),
-                if (correct && _lastXpEarned > 0)
+                // ── +XP (при верном ответе) ──────────────────────────
+                if (correct && _lastXpEarned > 0) ...[
+                  const SizedBox(height: 2),
                   Text(
                     '+$_lastXpEarned XP',
                     style: const TextStyle(
@@ -548,9 +696,37 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                       color: Color(0xFF388E3C),
                     ),
                   ),
+                ],
+                // ── Правильный ответ (при неверном) ─────────────────
+                if (hasCorrectAnswer) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Правильный ответ: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF7B1C1C),
+                        ),
+                      ),
+                      Flexible(
+                        child: Text(
+                          _lastCorrectAnswer!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFC62828),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
+          const SizedBox(width: 12),
           ElevatedButton(
             onPressed: _next,
             style: ElevatedButton.styleFrom(
@@ -562,9 +738,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                   borderRadius: BorderRadius.circular(20)),
             ),
             child: Text(
-              _current + 1 < _exercises.length
-                  ? 'Дальше'
-                  : 'Завершить',
+              _current + 1 < _exercises.length ? 'Дальше' : 'Завершить',
             ),
           ),
         ],

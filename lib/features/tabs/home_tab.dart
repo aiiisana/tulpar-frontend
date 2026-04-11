@@ -24,7 +24,8 @@ class _HomeHeaderData {
 }
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
+  final VoidCallback? onProfileTap;
+  const HomeTab({super.key, this.onProfileTap});
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -68,18 +69,25 @@ class _HomeTabState extends State<HomeTab> {
     int streak = 0;
     List<CalendarDay> calendar = [];
 
+    ProfileModel? profile;
     try {
-      final profile = await ProfileService.getProfile();
+      profile = await ProfileService.getProfile();
       if (profile != null) {
         final raw = profile.username ?? '';
-        name = raw.trim().isEmpty ? placeholder : raw.trim();
+        final trimmed = raw.trim();
+        name = trimmed.isEmpty ? placeholder : trimmed.split(' ').first;
         streak = profile.currentStreak;
       }
     } catch (_) {
-      // fall back to local storage on network error
-      final first = await AppStorage.getFirstName();
-      name = (first == null || first.trim().isEmpty) ? placeholder : first.trim();
       streak = await AppStorage.getStreakDays();
+    }
+
+    // If name is still placeholder, fall back to local storage
+    if (name == placeholder) {
+      final first = await AppStorage.getFirstName();
+      final last = await AppStorage.getLastName();
+      final f = (first ?? '').trim();
+      if (f.isNotEmpty) name = f;
     }
 
     try {
@@ -133,45 +141,41 @@ class _HomeTabState extends State<HomeTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Қайырлы таң!',
-                          style: TextStyle(
+                        Text(
+                          'Қайырлы таң, $name!',
+                          style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          name,
-                          style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 13),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppTheme.border),
-                      boxShadow: const [
-                        BoxShadow(
-                          blurRadius: 10,
-                          offset: Offset(0, 6),
-                          color: Color(0x22000000),
-                        )
-                      ],
-                    ),
-                    child: const Center(
-                      child: ClipOval(
-                        child: Image(
-                          image:
-                              AssetImage('assets/images/face1.png'),
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
+                  GestureDetector(
+                    onTap: widget.onProfileTap,
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.border),
+                        boxShadow: const [
+                          BoxShadow(
+                            blurRadius: 10,
+                            offset: Offset(0, 6),
+                            color: Color(0x22000000),
+                          )
+                        ],
+                      ),
+                      child: const Center(
+                        child: ClipOval(
+                          child: Image(
+                            image:
+                                AssetImage('assets/images/face1.png'),
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),

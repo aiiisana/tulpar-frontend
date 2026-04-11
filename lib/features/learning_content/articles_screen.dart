@@ -14,6 +14,9 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
   List<ArticleModel> _articles = [];
   bool _loading = true;
   int _selected = 0;
+  // Cache of full articles by id
+  final Map<String, ArticleModel> _fullArticles = {};
+  bool _contentLoading = false;
 
   @override
   void initState() {
@@ -28,6 +31,24 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
       _articles = articles;
       _loading = false;
     });
+    if (articles.isNotEmpty) _loadContent(articles[0]);
+  }
+
+  Future<void> _loadContent(ArticleModel article) async {
+    if (_fullArticles.containsKey(article.id)) return;
+    if (!mounted) return;
+    setState(() => _contentLoading = true);
+    final full = await ArticleService.getById(article.id);
+    if (!mounted) return;
+    setState(() {
+      if (full != null) _fullArticles[full.id] = full;
+      _contentLoading = false;
+    });
+  }
+
+  void _selectArticle(int i) {
+    setState(() => _selected = i);
+    _loadContent(_articles[i]);
   }
 
   @override
@@ -113,8 +134,7 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
                             borderRadius: BorderRadius.circular(10),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                              onTap: () =>
-                                  setState(() => _selected = i),
+                              onTap: () => _selectArticle(i),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 12),
@@ -179,10 +199,21 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: AppTheme.border),
                         ),
-                        child: SingleChildScrollView(
-                          child: _ArticleContent(
-                              article: _articles[_selected]),
-                        ),
+                        child: _contentLoading
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: CircularProgressIndicator(
+                                      color: AppTheme.primary),
+                                ),
+                              )
+                            : SingleChildScrollView(
+                                child: _ArticleContent(
+                                  article: _fullArticles[
+                                          _articles[_selected].id] ??
+                                      _articles[_selected],
+                                ),
+                              ),
                       ),
                     ),
                   ],

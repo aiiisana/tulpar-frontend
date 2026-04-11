@@ -107,7 +107,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final l = (last ?? '').trim();
     if (f.isEmpty) return placeholder;
     if (l.isEmpty) return f;
-    return '$f ${l.substring(0, 1).toUpperCase()}.';
+    return '$f $l';
   }
 
   // ── Edit name ────────────────────────────────────────────────────────────────
@@ -116,18 +116,42 @@ class _ProfileTabState extends State<ProfileTab> {
     final scope = UiLocaleScope.of(context);
     final s = AppStr.fromContext(scope.locale);
 
-    final isScopePlaceholder = displayName == s.userPlaceholder;
-    final controllerFirst =
-        TextEditingController(text: isScopePlaceholder ? '' : displayName);
+    // Pre-fill: split username into first / last by first space
+    final isPlaceholder = displayName == s.userPlaceholder;
+    String initFirst = '';
+    String initLast = '';
+    if (!isPlaceholder) {
+      final spaceIdx = displayName.indexOf(' ');
+      if (spaceIdx == -1) {
+        initFirst = displayName;
+      } else {
+        initFirst = displayName.substring(0, spaceIdx).trim();
+        initLast  = displayName.substring(spaceIdx + 1).trim();
+      }
+    }
+
+    final controllerFirst = TextEditingController(text: initFirst);
+    final controllerLast  = TextEditingController(text: initLast);
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(s.editNameTitle),
-        content: TextField(
-          decoration:
-              InputDecoration(labelText: s.firstName),
-          controller: controllerFirst,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controllerFirst,
+              decoration: InputDecoration(labelText: s.firstName),
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controllerLast,
+              decoration: InputDecoration(labelText: s.lastName),
+              textCapitalization: TextCapitalization.words,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -142,27 +166,122 @@ class _ProfileTabState extends State<ProfileTab> {
 
     if (saved != true) return;
 
-    final newName = controllerFirst.text.trim();
-    if (newName.isEmpty) return;
+    final newFirst = controllerFirst.text.trim();
+    final newLast  = controllerLast.text.trim();
+    if (newFirst.isEmpty) return;
+
+    final fullName = newLast.isEmpty ? newFirst : '$newFirst $newLast';
 
     // Update on backend
     try {
-      final updated = await ProfileService.updateUsername(newName);
+      final updated = await ProfileService.updateUsername(fullName);
       if (updated != null && mounted) {
-        setState(() => displayName = updated.username ?? newName);
+        setState(() => displayName = updated.username ?? fullName);
       }
     } catch (_) {}
 
-    // Also save locally as fallback
-    await AppStorage.saveProfile(firstName: newName, lastName: '');
+    // Save locally
+    await AppStorage.saveProfile(firstName: newFirst, lastName: newLast);
     if (mounted) await _load();
+  }
+
+  // ── Change difficulty level ───────────────────────────────────────────────────
+
+  Future<void> _changeLevel() async {
+    final s = AppStr.fromContext(UiLocaleScope.langOf(context));
+
+    // Список уровней: [apiValue, название на русском, описание]
+    const levels = [
+      ('BEGINNER',     'Начинающий',   'Базовые слова и простые фразы'),
+      ('ELEMENTARY',   'Элементарный', 'Простые предложения и диалоги'),
+      ('INTERMEDIATE', 'Средний',      'Разговорная речь и грамматика'),
+      ('ADVANCED',     'Продвинутый',  'Сложный текст и беглая речь'),
+    ];
+
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            // Drag handle
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 18),
+              child: Text(
+                'Выберите уровень',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 18),
+              child: Text(
+                'Карта уроков обновится после смены уровня',
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (final (api, name, desc) in levels)
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                title: Text(name,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle: Text(desc,
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                trailing: levelLabel == name
+                    ? const Icon(Icons.check_circle, color: AppTheme.primary)
+                    : const Icon(Icons.circle_outlined, color: AppTheme.textSecondary),
+                onTap: () => Navigator.pop(context, api),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen == null) return;
+
+    // Если выбрали тот же уровень — ничего не делаем
+    final currentApi = switch (levelLabel) {
+      'Начинающий'   => 'BEGINNER',
+      'Элементарный' => 'ELEMENTARY',
+      'Средний'      => 'INTERMEDIATE',
+      'Продвинутый'  => 'ADVANCED',
+      _              => '',
+    };
+    if (chosen == currentApi) return;
+
+    try {
+      await ProfileService.updateLevel(chosen);
+      if (mounted) await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Не удалось сменить уровень. Проверьте подключение.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   // ── Change daily goal ─────────────────────────────────────────────────────────
 
   Future<void> _changeGoal() async {
     final s = AppStr.fromContext(UiLocaleScope.langOf(context));
-    final options = [15, 30, 45, 60, 90, 120];
+    final options = [2, 5, 10, 15, 20, 25];
 
     final chosen = await showModalBottomSheet<int>(
       context: context,
@@ -176,7 +295,7 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
             for (final m in options)
               ListTile(
-                title: Text('$m ${s.en ? 'min' : 'минут'}'),
+                title: Text('$m ${s.en ? 'min' : 'мин'}'),
                 trailing:
                     m == goalMin ? const Icon(Icons.check) : null,
                 onTap: () => Navigator.pop(context, m),
@@ -393,6 +512,16 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
             child: Column(
               children: [
+                _ProfileSettingsTile(
+                  title: 'Уровень',
+                  value: levelLabel,
+                  onTap: _changeLevel,
+                ),
+                const Divider(
+                    height: 1,
+                    indent: 12,
+                    endIndent: 12,
+                    color: AppTheme.border),
                 _ProfileSettingsTile(
                   title: s.dailyGoal,
                   value: s.minutesValue(goalMin),

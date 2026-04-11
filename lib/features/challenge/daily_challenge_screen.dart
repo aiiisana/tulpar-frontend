@@ -29,6 +29,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   // Флаги состояния
   bool _submitted = false;
   bool _isCorrect = false;
+  bool _xpAwarded = false;
 
   @override
   void initState() {
@@ -72,12 +73,33 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     });
   }
 
-  void _check() {
-    final answer = _chosen.join().toLowerCase();
-    final correct = (_challenge?.correctWord ?? '').toLowerCase();
+  Future<void> _check() async {
+    if (_challenge == null) return;
+    final answer = _chosen.join();
+
+    // Сначала показываем, что проверяем
+    setState(() => _submitted = true);
+
+    final result = await DailyChallengeService.submitAnswer(
+      challengeId: _challenge!.id,
+      answer: answer,
+    );
+
+    if (!mounted) return;
     setState(() {
-      _submitted = true;
-      _isCorrect = correct.isNotEmpty && answer == correct;
+      _isCorrect = result.correct;
+      _xpAwarded = result.xpAwarded > 0;
+      // Сохраняем правильное слово из ответа бэкенда (на случай если correctWord был null)
+      if (result.correctWord.isNotEmpty && _challenge!.correctWord == null) {
+        _challenge = DailyChallengeModel(
+          id:            _challenge!.id,
+          challengeDate: _challenge!.challengeDate,
+          letters:       _challenge!.letters,
+          imageUrls:     _challenge!.imageUrls,
+          wordLength:    _challenge!.wordLength,
+          correctWord:   result.correctWord,
+        );
+      }
     });
   }
 
@@ -97,6 +119,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
       _chosen = [];
       _submitted = false;
       _isCorrect = false;
+      _xpAwarded = false;
     });
   }
 
@@ -390,17 +413,47 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            _isCorrect ? 'Дұрыс! 🎉' : 'Дұрыс емес',
+            _isCorrect ? 'Правильно!' : 'Не правильно',
             style: TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 17,
                 color: _isCorrect ? Colors.green : Colors.red),
           ),
+          if (_isCorrect && _xpAwarded) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF9C4),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFFFD600)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.star_rounded, color: Color(0xFFFFB300), size: 18),
+                  SizedBox(width: 4),
+                  Text('+10 XP',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: Color(0xFF795548))),
+                ],
+              ),
+            ),
+          ],
+          if (_isCorrect && !_xpAwarded && _submitted) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'XP за сегодня уже получены',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
           if (!_isCorrect &&
               (_challenge?.correctWord ?? '').isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              'Дұрыс жауап: ${_challenge!.correctWord!.toUpperCase()}',
+              'Правильный ответ: ${_challenge!.correctWord!.toUpperCase()}',
               style: const TextStyle(
                   fontSize: 14, color: AppTheme.textSecondary),
             ),
@@ -408,7 +461,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
           const SizedBox(height: 14),
           TextButton(
             onPressed: _reset,
-            child: const Text('Қайталау',
+            child: const Text('Повторить',
                 style: TextStyle(color: AppTheme.primary)),
           ),
         ],

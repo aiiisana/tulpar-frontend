@@ -27,6 +27,11 @@ class ExerciseModel {
   final String? imageUrl;
   final List<String> options;
 
+  // Video
+  final String? videoUrl;
+  final double? startTime;
+  final double? endTime;
+
   // Sentence builder
   final List<String> shuffledWords;
 
@@ -42,6 +47,9 @@ class ExerciseModel {
     this.transcript,
     this.imageUrl,
     this.options = const [],
+    this.videoUrl,
+    this.startTime,
+    this.endTime,
     this.shuffledWords = const [],
   });
 
@@ -58,6 +66,9 @@ class ExerciseModel {
       transcript:      j['transcript'] as String?,
       imageUrl:        j['imageUrl'] as String?,
       options:         List<String>.from(j['options'] as List<dynamic>? ?? []),
+      videoUrl:        j['videoUrl'] as String?,
+      startTime:       (j['startTime'] as num?)?.toDouble(),
+      endTime:         (j['endTime'] as num?)?.toDouble(),
       shuffledWords:   List<String>.from(
                          j['shuffledWords'] as List<dynamic>? ?? []),
     );

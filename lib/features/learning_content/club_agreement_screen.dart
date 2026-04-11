@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../widgets/circle_back_button.dart';
+import 'speaking_clubs_screen.dart';
 
 class ClubAgreementScreen extends StatelessWidget {
   const ClubAgreementScreen({super.key});
@@ -70,6 +71,51 @@ class ClubAgreementScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textSecondary,
+                        side: const BorderSide(color: AppTheme.border),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('Отклонить',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const SpeakingClubsScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text('Принять',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
