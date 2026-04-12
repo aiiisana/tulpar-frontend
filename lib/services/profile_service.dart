@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../app/api_client.dart';
 
@@ -127,6 +128,42 @@ class ProfileService {
       await _api.put('/profile', data: {'notificationsEnabled': enabled});
     } catch (e) {
       debugPrint('[Profile] updateNotificationsEnabled failed: $e');
+    }
+  }
+
+  /// POST /profile/avatar — загружает аватар как multipart/form-data (поле: file).
+  /// Возвращает URL нового аватара или null при ошибке.
+  static Future<String?> uploadAvatar(String filePath) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+      });
+      final res = await _api.post('/profile/avatar', data: formData);
+      final body = res.data;
+      debugPrint('[Profile] uploadAvatar response: $body');
+
+      // Вариант 1: бэкенд вернул строку — это и есть URL
+      if (body is String && body.startsWith('http')) return body;
+
+      if (body is Map<String, dynamic>) {
+        // Вариант 2: { avatarUrl: "..." }
+        final url = body['avatarUrl'] as String?
+            ?? body['avatar_url'] as String?
+            ?? body['url'] as String?;
+        if (url != null) return url;
+
+        // Вариант 3: вернулся полный профиль
+        final nested = body['data'];
+        if (nested is Map<String, dynamic>) {
+          return nested['avatarUrl'] as String?;
+        }
+      }
+
+      // Запрос успешен, но URL не извлечь — перезагрузим профиль выше
+      return '';
+    } catch (e) {
+      debugPrint('[Profile] uploadAvatar failed: $e');
+      return null;
     }
   }
 

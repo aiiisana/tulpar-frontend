@@ -8,23 +8,25 @@ import '../../app/ui_locale.dart';
 import '../../services/profile_service.dart';
 import '../../services/stats_service.dart';
 
-
 // ── Home header model ─────────────────────────────────────────────────────────
 
 class _HomeHeaderData {
   final String name;
   final int streakDays;
   final List<CalendarDay> calendar;
+  final String? imageUrl;
 
   const _HomeHeaderData({
     required this.name,
     required this.streakDays,
     required this.calendar,
+    this.imageUrl,
   });
 }
 
 class HomeTab extends StatefulWidget {
   final VoidCallback? onProfileTap;
+
   const HomeTab({super.key, this.onProfileTap});
 
   @override
@@ -32,8 +34,7 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  final GlobalKey<HomeLevelMapState> _mapKey =
-      GlobalKey<HomeLevelMapState>();
+  final GlobalKey<HomeLevelMapState> _mapKey = GlobalKey<HomeLevelMapState>();
   late Future<_HomeHeaderData> _headerFuture;
   String? _lastUiLang;
 
@@ -53,7 +54,9 @@ class _HomeTabState extends State<HomeTab> {
     }
     if (_lastUiLang != lang) {
       _lastUiLang = lang;
-      setState(() { _headerFuture = _loadHeader(); });
+      setState(() {
+        _headerFuture = _loadHeader();
+      });
     }
   }
 
@@ -68,6 +71,7 @@ class _HomeTabState extends State<HomeTab> {
     String name = placeholder;
     int streak = 0;
     List<CalendarDay> calendar = [];
+    String? imageUrl;
 
     ProfileModel? profile;
     try {
@@ -77,6 +81,8 @@ class _HomeTabState extends State<HomeTab> {
         final trimmed = raw.trim();
         name = trimmed.isEmpty ? placeholder : trimmed.split(' ').first;
         streak = profile.currentStreak;
+
+        imageUrl = profile.avatarUrl;
       }
     } catch (_) {
       streak = await AppStorage.getStreakDays();
@@ -99,11 +105,7 @@ class _HomeTabState extends State<HomeTab> {
       calendar = homeData.calendar;
     } catch (_) {}
 
-    return _HomeHeaderData(
-      name: name,
-      streakDays: streak,
-      calendar: calendar,
-    );
+    return _HomeHeaderData(name: name, streakDays: streak, calendar: calendar, imageUrl: imageUrl);
   }
 
   Future<void> _startLesson() async {
@@ -111,7 +113,9 @@ class _HomeTabState extends State<HomeTab> {
     await HomeLevelMap.openRecommendedLesson(context);
     await _mapKey.currentState?.reloadProgress();
     if (mounted) {
-      setState(() { _headerFuture = _loadHeader(); });
+      setState(() {
+        _headerFuture = _loadHeader();
+      });
     }
   }
 
@@ -125,6 +129,7 @@ class _HomeTabState extends State<HomeTab> {
         final name = snap.data?.name ?? '...';
         final streak = snap.data?.streakDays ?? 0;
         final calendar = snap.data?.calendar;
+        final imageUrl = snap.data?.imageUrl;
         // If we have backend calendar data, use it; otherwise fall back to
         // a simple "week around today" display.
         final weekCells = _buildWeekCells(s.weekDayLabels, calendar);
@@ -135,7 +140,7 @@ class _HomeTabState extends State<HomeTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: Column(
@@ -144,8 +149,9 @@ class _HomeTabState extends State<HomeTab> {
                         Text(
                           'Қайырлы таң, $name!',
                           style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),
@@ -164,22 +170,30 @@ class _HomeTabState extends State<HomeTab> {
                             blurRadius: 10,
                             offset: Offset(0, 6),
                             color: Color(0x22000000),
-                          )
+                          ),
                         ],
                       ),
-                      child: const Center(
+                      child: Center(
                         child: ClipOval(
-                          child: Image(
-                            image:
-                                AssetImage('assets/images/face1.png'),
+                          child: Image.network(
+                            key: ValueKey(imageUrl), // обязательно
+                            imageUrl ?? '',
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) {
+                              return Image.asset(
+                                'assets/images/face1.png',
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                              );
+                            },
                           ),
                         ),
                       ),
                     ),
-                  )
+                  ),
                 ],
               ),
 
@@ -188,7 +202,9 @@ class _HomeTabState extends State<HomeTab> {
               Text(
                 s.dailyPractice,
                 style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w700),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -202,14 +218,13 @@ class _HomeTabState extends State<HomeTab> {
               Text(
                 s.streakLine(streak),
                 style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 13),
+                  color: AppTheme.textSecondary,
+                  fontSize: 13,
+                ),
               ),
 
               const SizedBox(height: 14),
-              PrimaryButton(
-                text: s.startLesson,
-                onPressed: _startLesson,
-              ),
+              PrimaryButton(text: s.startLesson, onPressed: _startLesson),
 
               const SizedBox(height: 18),
 
@@ -234,7 +249,8 @@ class _HomeTabState extends State<HomeTab> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final monday = today.subtract(
-        Duration(days: now.weekday - DateTime.monday));
+      Duration(days: now.weekday - DateTime.monday),
+    );
 
     return List.generate(7, (i) {
       final d = monday.add(Duration(days: i));
@@ -264,15 +280,19 @@ class _HomeTabState extends State<HomeTab> {
           width: 38,
           child: Column(
             children: [
-              Text(label,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11,
-                      color: Colors.grey.shade500)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  color: Colors.grey.shade500,
+                ),
+              ),
               const SizedBox(height: 6),
-              Text('$date',
-                  style: TextStyle(
-                      fontSize: 11, color: Colors.grey.shade500)),
+              Text(
+                '$date',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
             ],
           ),
         );
@@ -285,33 +305,38 @@ class _HomeTabState extends State<HomeTab> {
           color: isToday
               ? Colors.white
               : completed
-                  ? AppTheme.primary.withOpacity(0.12)
-                  : AppTheme.calendarDayBg,
+              ? AppTheme.primary.withOpacity(0.12)
+              : AppTheme.calendarDayBg,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isToday
                 ? AppTheme.primary
                 : completed
-                    ? AppTheme.primary.withOpacity(0.5)
-                    : AppTheme.border,
+                ? AppTheme.primary.withOpacity(0.5)
+                : AppTheme.border,
             width: isToday ? 2 : 1,
           ),
         ),
         child: Column(
           children: [
-            Text(label,
-                style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                    color: completed && !isToday
-                        ? AppTheme.primary
-                        : AppTheme.textPrimary)),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                color: completed && !isToday
+                    ? AppTheme.primary
+                    : AppTheme.textPrimary,
+              ),
+            ),
             const SizedBox(height: 3),
             completed && !isToday
-                ? const Icon(Icons.check_rounded,
-                    size: 13, color: AppTheme.primary)
-                : Text('$date',
-                    style: const TextStyle(fontSize: 11)),
+                ? const Icon(
+                    Icons.check_rounded,
+                    size: 13,
+                    color: AppTheme.primary,
+                  )
+                : Text('$date', style: const TextStyle(fontSize: 11)),
           ],
         ),
       );

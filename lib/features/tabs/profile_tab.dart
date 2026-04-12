@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../app/app_storage.dart';
 import '../../app/app_strings.dart';
 import '../../app/content_assets.dart';
@@ -29,6 +30,8 @@ class _ProfileTabState extends State<ProfileTab> {
   int totalExercisesCompleted = 0;
   int totalExercisesFailed = 0;
   bool _loadingProfile = true;
+  String? _avatarUrl;
+  bool _uploadingAvatar = false;
 
   @override
   void initState() {
@@ -82,6 +85,9 @@ class _ProfileTabState extends State<ProfileTab> {
             ? profile.currentStreak
             : stats.currentStreak;
         totalXp = profile.totalXp > 0 ? profile.totalXp : stats.totalXp;
+        if ((profile.avatarUrl ?? '').isNotEmpty) {
+          _avatarUrl = profile.avatarUrl;
+        }
       } else {
         // Fallback to local storage
         streakDays = stats.currentStreak;
@@ -108,6 +114,47 @@ class _ProfileTabState extends State<ProfileTab> {
     if (f.isEmpty) return placeholder;
     if (l.isEmpty) return f;
     return '$f $l';
+  }
+
+  // ── Avatar upload ─────────────────────────────────────────────────────────────
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    final XFile? picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 512,
+      maxHeight: 512,
+    );
+    if (picked == null) return;
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      final result = await ProfileService.uploadAvatar(picked.path);
+
+      if (result == null) {
+        // null — ошибка запроса
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось загрузить фото. Попробуйте ещё раз.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Если получили конкретный URL — сразу показываем
+      if (result.isNotEmpty && mounted) {
+        setState(() => _avatarUrl = result);
+      }
+
+      // В любом случае перезагружаем профиль, чтобы получить свежий avatarUrl
+      if (mounted) await _load();
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
   }
 
   // ── Edit name ────────────────────────────────────────────────────────────────
@@ -401,23 +448,63 @@ class _ProfileTabState extends State<ProfileTab> {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Column(
               children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: const [
-                      BoxShadow(
-                          blurRadius: 10,
-                          offset: Offset(0, 6),
-                          color: Color(0x22000000))
+                GestureDetector(
+                  onTap: _uploadingAvatar ? null : _pickAndUploadAvatar,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: const [
+                            BoxShadow(
+                                blurRadius: 10,
+                                offset: Offset(0, 6),
+                                color: Color(0x22000000))
+                          ],
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: _uploadingAvatar
+                            ? const Center(
+                                child: SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                ),
+                              )
+                            : _avatarUrl != null
+                                ? Image.network(
+                                    key: ValueKey(_avatarUrl),
+                                    _avatarUrl!,
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, _) {
+                                      debugPrint('[Avatar] load error: $error, url: $_avatarUrl');
+                                      return ContentAssets.profileAvatarWidget(size: 72);
+                                    },
+                                  )
+                                : ContentAssets.profileAvatarWidget(size: 72),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(
+                            color: AppTheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_alt,
+                              size: 13, color: Colors.white),
+                        ),
+                      ),
                     ],
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Center(
-                      child:
-                          ContentAssets.profileAvatarWidget(size: 72)),
                 ),
                 const SizedBox(height: 10),
                 _loadingProfile
