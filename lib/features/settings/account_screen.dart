@@ -4,6 +4,7 @@ import '../../app/app_strings.dart';
 import '../../app/theme.dart';
 import '../../app/ui_locale.dart';
 import '../../widgets/circle_back_button.dart';
+import '../../widgets/default_popup.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -50,7 +51,15 @@ class AccountScreen extends StatelessWidget {
                         title: Text(s.password),
                         subtitle: Text('••••••••'),
                         trailing: Text(s.soon, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                        onTap: () => _snack(context, s.passwordChangeSoon),
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => DefaultPopup(
+                              message: s.passwordChangeSoon,
+                              buttonText: 'Ок',
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

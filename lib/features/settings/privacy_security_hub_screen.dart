@@ -3,6 +3,7 @@ import '../../app/app_strings.dart';
 import '../../app/theme.dart';
 import '../../app/ui_locale.dart';
 import '../../widgets/circle_back_button.dart';
+import '../../widgets/default_popup.dart';
 import 'security_screen.dart';
 
 class PrivacySecurityHubScreen extends StatefulWidget {
@@ -76,8 +77,12 @@ class _PrivacySecurityHubScreenState extends State<PrivacySecurityHubScreen> {
               title: Text(s.downloadData),
               subtitle: Text(s.downloadDataSub),
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(s.soon)),
+                showDialog(
+                  context: context,
+                  builder: (context) => DefaultPopup(
+                    message: 'Данная функция появится в следующих версиях приложения.',
+                    buttonText: 'Ок',
+                  ),
                 );
               },
             ),
