@@ -1,17 +1,21 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import '../features/lesson/exercise_screen.dart';
 import '../services/lesson_service.dart';
+import 'default_popup.dart';
 
 // ── Canvas constants ──────────────────────────────────────────────────────────
 
-const double kLevelMapWidth   = 420;
+const double kLevelMapWidth = 420;
 const double kMapCanvasPadding = 28;
-const double kMapCanvasWidth  = kLevelMapWidth + kMapCanvasPadding * 2;
+const double kMapCanvasWidth = kLevelMapWidth + kMapCanvasPadding * 2;
 
-const double _kNodeStep = 130.0; // вертикальный шаг между пузырьками
-const double _kFirstY  = 68.0;  // Y первого пузырька
+const double _kNodeStep = 130.0;
+const double _kFirstY = 68.0;
 const double _kBottomMargin = 80.0;
 
 // ── Load result ───────────────────────────────────────────────────────────────
@@ -53,9 +57,7 @@ class _MapLesson {
 
 /// Зигзаг-позиции: чётные — правее, нечётные — левее
 Offset _positionFor(int i) {
-  final x = (i % 2 == 0)
-      ? kLevelMapWidth * 0.58
-      : kLevelMapWidth * 0.30;
+  final x = (i % 2 == 0) ? kLevelMapWidth * 0.70 : kLevelMapWidth * 0.20;
   final y = _kFirstY + i * _kNodeStep;
   return Offset(x, y);
 }
@@ -68,76 +70,130 @@ double _canvasHeight(int count) {
 List<Offset> _centers(int count) =>
     List.generate(count, (i) => _positionFor(i));
 
+Offset _getBezierPoint(Offset p0, Offset p1, double t, int segIndex) {
+  final mx = (p0.dx + p1.dx) / 2;
+  final my = (p0.dy + p1.dy) / 2;
+  final ctrl = Offset(mx + (segIndex.isEven ? 50 : -50), my);
+  double x =
+      (1 - t) * (1 - t) * p0.dx + 2 * (1 - t) * t * ctrl.dx + t * t * p1.dx;
+  double y =
+      (1 - t) * (1 - t) * p0.dy + 2 * (1 - t) * t * ctrl.dy + t * t * p1.dy;
+  return Offset(x, y);
+}
+
 // ── Path painter ──────────────────────────────────────────────────────────────
 
 enum _SegmentKind { locked, next, completed }
 
 class _LevelPathPainter extends CustomPainter {
   final List<Offset> points;
-  final List<_SegmentKind> kinds;
+  final List<_MapLesson> lessons;
+  final ui.Image? horseLeft;
+  final ui.Image? horseRight;
 
-  _LevelPathPainter({required this.points, required this.kinds});
-
-  static Path _segmentPath(Offset p0, Offset p1, int segIndex) {
-    final mx = (p0.dx + p1.dx) / 2;
-    final my = (p0.dy + p1.dy) / 2;
-    final ctrl = Offset(mx + (segIndex.isEven ? 26 : -26), my);
-    return Path()
-      ..moveTo(p0.dx, p0.dy)
-      ..quadraticBezierTo(ctrl.dx, ctrl.dy, p1.dx, p1.dy);
-  }
+  _LevelPathPainter({required this.points, required this.lessons, this.horseLeft, this.horseRight});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (points.length < 2) return;
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
+
+    final paintLine = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+
     for (var s = 0; s < points.length - 1; s++) {
-      final path = _segmentPath(points[s], points[s + 1], s);
-      final kind = s < kinds.length ? kinds[s] : _SegmentKind.locked;
+      final p0 = points[s];
+      final p1 = points[s + 1];
+      final path = _segmentPath(p0, p1, s);
 
-      late Color main;
-      late double w;
-      switch (kind) {
-        case _SegmentKind.locked:
-          main = const Color(0xFFB8C4BC).withOpacity(0.55);
-          w = 6;
-        case _SegmentKind.next:
-          main = const Color(0xFFC9E85C);
-          w = 11;
-        case _SegmentKind.completed:
-          main = AppTheme.primary;
-          w = 10;
+      final currentLesson = lessons[s];
+      final nextLesson = lessons[s + 1];
+
+      paintLine.color = currentLesson.completed
+          ? const Color(0xFF3D523E)
+          : const Color(0xFFB8C4BC).withOpacity(0.5);
+
+      canvas.drawPath(path, paintLine);
+
+      if (currentLesson.completed &&
+          (nextLesson.unlocked && !nextLesson.completed)) {
+        _drawHorseImage(canvas, p0, p1, s);
       }
-
-      if (kind == _SegmentKind.next) {
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = const Color(0xFFE8F5A0).withOpacity(0.85)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = w + 6
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
-      }
-
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = main
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = w
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
     }
-    canvas.restore();
+  }
+
+  void _drawHorseImage(Canvas canvas, Offset p0, Offset p1, int index) {
+    const double t = 0.5;
+    final horsePos = _getBezierPoint(p0, p1, t, index);
+
+    double angle = _getBezierAngle(p0, p1, t, index);
+
+    final ui.Image? image = (index % 2 == 0) ? horseLeft : horseRight;
+
+    if (image != null) {
+      const double imgSize = 65.0;
+
+      canvas.save();
+
+      canvas.translate(horsePos.dx, horsePos.dy - 30);
+
+      if (angle.abs() > math.pi / 2) {
+        angle += math.pi;
+      }
+      angle *= 0.45;
+
+      canvas.rotate(angle);
+
+      paintImage(
+        canvas: canvas,
+        rect: Rect.fromCenter(
+          center: Offset.zero,
+          width: imgSize,
+          height: imgSize,
+        ),
+        image: image,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+      );
+
+      canvas.restore();
+    }
+  }
+
+  double _getBezierAngle(Offset p0, Offset p1, double t, int segIndex) {
+    final mx = (p0.dx + p1.dx) / 2;
+    final my = (p0.dy + p1.dy) / 2;
+    final ctrl = Offset(mx + (segIndex.isEven ? 50 : -50), my);
+
+    final dx = 2 * (1 - t) * (ctrl.dx - p0.dx) + 2 * t * (p1.dx - ctrl.dx);
+    final dy = 2 * (1 - t) * (ctrl.dy - p0.dy) + 2 * t * (p1.dy - ctrl.dy);
+
+    return ui.Offset(dx, dy).direction;
   }
 
   @override
-  bool shouldRepaint(covariant _LevelPathPainter old) =>
-      old.points != points || old.kinds != kinds;
+  bool shouldRepaint(covariant _LevelPathPainter old) => true;
+
+  Offset _getBezierPoint(Offset p0, Offset p1, double t, int segIndex) {
+    final mx = (p0.dx + p1.dx) / 2;
+    final my = (p0.dy + p1.dy) / 2;
+    final ctrl = Offset(mx + (segIndex.isEven ? 50 : -50), my);
+    double x =
+        (1 - t) * (1 - t) * p0.dx + 2 * (1 - t) * t * ctrl.dx + t * t * p1.dx;
+    double y =
+        (1 - t) * (1 - t) * p0.dy + 2 * (1 - t) * t * ctrl.dy + t * t * p1.dy;
+    return Offset(x, y);
+  }
+
+  static Path _segmentPath(Offset p0, Offset p1, int segIndex) {
+    final mx = (p0.dx + p1.dx) / 2;
+    final my = (p0.dy + p1.dy) / 2;
+    final ctrl = Offset(mx + (segIndex.isEven ? 50 : -50), my);
+    return Path()
+      ..moveTo(p0.dx, p0.dy)
+      ..quadraticBezierTo(ctrl.dx, ctrl.dy, p1.dx, p1.dy);
+  }
 }
 
 // ── HomeLevelMap widget ───────────────────────────────────────────────────────
@@ -150,18 +206,23 @@ class HomeLevelMap extends StatefulWidget {
   static Future<void> openRecommendedLesson(BuildContext context) async {
     try {
       final courses = await LessonService.getCourses();
-      if (courses.isEmpty) { _noLessonsSnack(context); return; }
+      if (courses.isEmpty) {
+        _noLessonsSnack(context);
+        return;
+      }
 
       final levels = await LessonService.getCourseLevels(courses.first.id);
 
       if (levels.isEmpty) {
         // User has no difficulty selected — prompt them.
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Сначала выберите уровень в настройках'),
-            duration: Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Сначала выберите уровень в настройках'),
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
         return;
       }
@@ -172,21 +233,29 @@ class HomeLevelMap extends StatefulWidget {
       for (final lesson in lessons) {
         if (lesson.unlocked && !lesson.completed) {
           if (!context.mounted) return;
-          await Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ExerciseScreen(
-                lessonId: lesson.id, lessonTitle: lesson.title),
-          ));
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ExerciseScreen(
+                lessonId: lesson.id,
+                lessonTitle: lesson.title,
+              ),
+            ),
+          );
           return;
         }
       }
       // All lessons completed — re-open the last one for review.
       if (lessons.isNotEmpty && context.mounted) {
-        await Navigator.push(context, MaterialPageRoute(
-          builder: (_) => ExerciseScreen(
-            lessonId: lessons.last.id,
-            lessonTitle: lessons.last.title,
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExerciseScreen(
+              lessonId: lessons.last.id,
+              lessonTitle: lessons.last.title,
+            ),
           ),
-        ));
+        );
       }
     } catch (_) {
       if (context.mounted) _noLessonsSnack(context);
@@ -194,10 +263,12 @@ class HomeLevelMap extends StatefulWidget {
   }
 
   static void _noLessonsSnack(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Уроки недоступны. Проверьте подключение.'),
-      behavior: SnackBarBehavior.floating,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Уроки недоступны. Проверьте подключение.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -205,8 +276,11 @@ class HomeLevelMap extends StatefulWidget {
 }
 
 class HomeLevelMapState extends State<HomeLevelMap> {
+  ui.Image? _horseRight;
+  ui.Image? _horseLeft;
   List<_MapLesson> _lessons = [];
   bool _loading = true;
+
   /// True when the backend returned an empty level list because the user
   /// has not selected a difficulty level yet (onboarding incomplete).
   bool _needsLevelSelection = false;
@@ -214,10 +288,22 @@ class HomeLevelMapState extends State<HomeLevelMap> {
   @override
   void initState() {
     super.initState();
+    _loadImages();
     reloadProgress();
   }
 
-  // ── Загрузка: сначала бэкенд, при неудаче — фоллбэк ─────────────────────
+  Future<void> _loadImages() async {
+    _horseRight = await _loadImageAsset('assets/images/Vector.png');
+    _horseLeft = await _loadImageAsset('assets/images/Vector-2.png');
+    if (mounted) setState(() {});
+  }
+
+  Future<ui.Image> _loadImageAsset(String path) async {
+    final data = await DefaultAssetBundle.of(context).load(path);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
 
   Future<void> reloadProgress() async {
     if (!mounted) return;
@@ -263,16 +349,20 @@ class HomeLevelMapState extends State<HomeLevelMap> {
       if (lessons.isEmpty) return _LoadResult.empty();
 
       return _LoadResult(
-        lessons: lessons.map((lesson) => _MapLesson(
-          backendId: lesson.id,
-          fallbackIndex: lessons.indexOf(lesson) + 1,
-          title: lesson.title,
-          // Trust the backend's unlock flag completely.
-          // Backend correctly marks the first lesson as unlocked and gates
-          // subsequent lessons behind completing all exercises of the previous one.
-          unlocked: lesson.unlocked,
-          completed: lesson.completed,
-        )).toList(),
+        lessons: lessons
+            .map(
+              (lesson) => _MapLesson(
+                backendId: lesson.id,
+                fallbackIndex: lessons.indexOf(lesson) + 1,
+                title: lesson.title,
+                // Trust the backend's unlock flag completely.
+                // Backend correctly marks the first lesson as unlocked and gates
+                // subsequent lessons behind completing all exercises of the previous one.
+                unlocked: lesson.unlocked,
+                completed: lesson.completed,
+              ),
+            )
+            .toList(),
         needsLevelSelection: false,
       );
     } catch (e) {
@@ -303,19 +393,17 @@ class HomeLevelMapState extends State<HomeLevelMap> {
   Future<void> _onNodeTap(_MapLesson lesson) async {
     if (!lesson.unlocked) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Сначала пройдите предыдущий урок'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
+      // ЗАМЕНА: Теперь вызываем твой кастомный попап
+      DefaultPopup.show(
+        context,
+        message: 'Сначала пройдите предыдущий уровень, чтобы открыть этот!',
+        buttonText: 'Хорошо',
       );
       return;
     }
 
     if (!mounted) return;
 
-    // All lessons now always come from the backend — backendId is always set.
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -359,8 +447,11 @@ class HomeLevelMapState extends State<HomeLevelMap> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.school_outlined,
-                size: 48, color: AppTheme.primary.withOpacity(0.7)),
+            Icon(
+              Icons.school_outlined,
+              size: 48,
+              color: AppTheme.primary.withOpacity(0.7),
+            ),
             const SizedBox(height: 12),
             const Text(
               'Выберите уровень',
@@ -370,8 +461,7 @@ class HomeLevelMapState extends State<HomeLevelMap> {
             const SizedBox(height: 6),
             Text(
               'Пройдите настройку, чтобы начать обучение',
-              style: TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 13),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ],
@@ -388,94 +478,58 @@ class HomeLevelMapState extends State<HomeLevelMap> {
     final n = _lessons.length;
     final pts = _centers(n);
     final canvasH = _canvasHeight(n);
-    final kinds = _segmentKinds();
-
-    // Высота виджета: показываем максимум 3 пузырька + скролл
-    final widgetHeight = n <= 3 ? canvasH + kMapCanvasPadding * 2 : 380.0;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: SizedBox(
-        height: widgetHeight,
-        child: InteractiveViewer(
-          alignment: Alignment.center,
-          minScale: 0.75,
-          maxScale: 1.55,
-          boundaryMargin: const EdgeInsets.all(12),
-          constrained: false,
-          clipBehavior: Clip.hardEdge,
+      child: Container(
+        height: 380,
+        decoration: BoxDecoration(color: AppTheme.background),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
           child: SizedBox(
-            width: kMapCanvasWidth,
+            width: double.infinity,
             height: canvasH + kMapCanvasPadding * 2,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Фон
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0xFFE8E9EC),
-                          const Color(0xFFEBE8E0),
-                          AppTheme.background,
-                        ],
-                        stops: const [0.0, 0.45, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                // Виньетка
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(0, 0.85),
-                          radius: 1.15,
-                          colors: [
-                            Colors.white.withOpacity(0.55),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.65],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                // Пути + узлы
-                Positioned(
-                  left: kMapCanvasPadding,
-                  top: kMapCanvasPadding,
-                  width: kLevelMapWidth,
-                  height: canvasH,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Линии-пути
-                      CustomPaint(
-                        size: Size(kLevelMapWidth, canvasH),
-                        painter: _LevelPathPainter(points: pts, kinds: kinds),
-                      ),
-                      // Пузырьки уроков
-                      for (var i = 0; i < _lessons.length; i++)
-                        Positioned(
-                          left: pts[i].dx - half,
-                          top: pts[i].dy - half,
-                          width: nodeSize,
-                          height: nodeSize,
-                          child: _NodeBubble(
-                            lesson: _lessons[i],
-                            index: i,
-                            onTap: () => _onNodeTap(_lessons[i]),
+            child: Center(
+              child: SizedBox(
+                width: kLevelMapWidth,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: kMapCanvasPadding,
+                      width: kLevelMapWidth,
+                      height: canvasH,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          CustomPaint(
+                            size: Size(kLevelMapWidth, canvasH),
+                            painter: _LevelPathPainter(
+                              points: pts,
+                              lessons: _lessons,
+                              horseRight: _horseRight,
+                              horseLeft: _horseLeft,
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
+                          for (var i = 0; i < _lessons.length; i++)
+                            Positioned(
+                              left: pts[i].dx - half,
+                              top: pts[i].dy - half,
+                              width: nodeSize,
+                              height: nodeSize,
+                              child: _NodeBubble(
+                                lesson: _lessons[i],
+                                index: i,
+                                onTap: () => _onNodeTap(_lessons[i]),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -499,78 +553,51 @@ class _NodeBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final locked    = !lesson.unlocked;
-    final completed = lesson.completed;
+    final bool isCompleted = lesson.completed;
+    final bool isAvailable = lesson.unlocked && !lesson.completed;
+    final bool isLocked = !lesson.unlocked;
 
-    final Color borderColor;
-    final double borderW;
-    final Color bgColor;
-
-    if (locked) {
-      borderColor = AppTheme.border;
-      borderW     = 2.0;
-      bgColor     = Colors.white;
-    } else if (completed) {
-      borderColor = AppTheme.primary;
-      borderW     = 3.0;
-      bgColor     = AppTheme.primary.withOpacity(0.08);
+    Color bgColor;
+    Color textColor = Colors.white;
+    if (isCompleted) {
+      bgColor = const Color(0xFF3D523E); // Темно-зеленый
+    } else if (isAvailable) {
+      bgColor = const Color(0xFFC2D1B2); // Светло-зеленый
     } else {
-      borderColor = const Color(0xFFC9E85C);
-      borderW     = 3.0;
-      bgColor     = Colors.white;
+      bgColor = const Color(0xFFD1D1D1); // Серый для закрытых
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Opacity(
-          opacity: locked ? 0.5 : 1.0,
-          child: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: bgColor,
-              border: Border.all(color: borderColor, width: borderW),
-              boxShadow: [
-                if (!locked)
-                  BoxShadow(
-                    blurRadius: 14,
-                    spreadRadius: 0,
-                    color: (completed ? AppTheme.primary : const Color(0xFFC9E85C))
-                        .withOpacity(0.35),
-                  ),
-                const BoxShadow(
-                  blurRadius: 10,
-                  offset: Offset(0, 5),
-                  color: Color(0x18000000),
-                ),
-              ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: bgColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            child: Center(
-              child: locked
-                  ? Icon(Icons.lock_outline,
-                      color: AppTheme.primary.withOpacity(0.65), size: 26)
-                  : completed
-                      ? const Icon(Icons.check_rounded,
-                          color: AppTheme.primary, size: 30)
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${index + 1}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                            const Icon(Icons.star_rounded,
-                                color: Color(0xFF8FAF3A), size: 22),
-                          ],
-                        ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${index + 1}',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
             ),
-          ),
+            Icon(
+              isCompleted ? Icons.star_rounded : Icons.star_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ],
         ),
       ),
     );

@@ -23,12 +23,13 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   void _loadFlashcards() {
     _flashcardsFuture = FlashcardService.getAll().then((flashcards) {
+      final list = flashcards ?? [];
       setState(() {
-        _flashcards = flashcards!;
+        _flashcards = list;
         _currentIndex = 0;
         _isFlipped = false;
       });
-      return flashcards!;
+      return list;
     });
   }
 

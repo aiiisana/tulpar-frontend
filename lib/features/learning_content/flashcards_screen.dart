@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../models/flashcard_item.dart';
@@ -8,11 +9,12 @@ import 'saved_words_screen.dart';
 /// Converts a [FlashcardModel] from the backend to the local [FlashcardItem]
 /// so the UI layer stays unchanged.
 FlashcardItem _modelToItem(FlashcardModel m) => FlashcardItem(
-      id: m.id,
-      kazakh: m.wordKz,
-      pronunciation: m.transcription ?? '',
-      russian: m.wordRu,
-    );
+  id: m.id,
+  kazakh: m.wordKz,
+  pronunciation: m.transcription ?? '',
+  russian: m.wordRu,
+  audioUrl: m.audioUrl,
+);
 
 class FlashcardsScreen extends StatefulWidget {
   const FlashcardsScreen({super.key});
@@ -23,6 +25,8 @@ class FlashcardsScreen extends StatefulWidget {
 
 class _FlashcardsScreenState extends State<FlashcardsScreen> {
   final PageController _pageController = PageController();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  PlayerState _audioState = PlayerState.stopped;
 
   List<FlashcardItem> _deck = [];
   bool _loading = true;
@@ -39,10 +43,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   void initState() {
     super.initState();
     _loadDeck();
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _audioState = state);
+    });
   }
 
   @override
   void dispose() {
+    _audioPlayer.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -74,6 +82,20 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     if (_deck.isNotEmpty) _syncStar();
   }
 
+  // ── Audio ─────────────────────────────────────────────────────────
+
+  Future<void> _playAudio(String url) async {
+    try {
+      if (_audioState == PlayerState.playing) {
+        await _audioPlayer.stop();
+      } else {
+        await _audioPlayer.play(UrlSource(url));
+      }
+    } catch (e) {
+      _showCustomSnackBar('Ошибка аудио');
+    }
+  }
+
   // ── Star (save word) ─────────────────────────────────────────────────────────
 
   Future<void> _syncStar() async {
@@ -99,16 +121,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         await FlashcardService.unsave(_current.id);
         if (!mounted) return;
         setState(() => _starFilled = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Убрано из сохранённых')),
-        );
+        _showCustomSnackBar('Убрано из сохранённых');
       } else {
         await FlashcardService.save(_current.id);
         if (!mounted) return;
         setState(() => _starFilled = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Сохранено')),
-        );
+        _showCustomSnackBar('Сохранено в избранное');
       }
     } finally {
       if (mounted) setState(() => _starBusy = false);
@@ -145,9 +163,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     if (_loading) {
       return Scaffold(
         backgroundColor: AppTheme.background,
-        body: const SafeArea(
-          child: Center(child: CircularProgressIndicator()),
-        ),
+        body: const SafeArea(child: Center(child: CircularProgressIndicator())),
       );
     }
 
@@ -166,14 +182,18 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.wifi_off_rounded,
-                          size: 48, color: AppTheme.textSecondary),
+                      const Icon(
+                        Icons.wifi_off_rounded,
+                        size: 48,
+                        color: AppTheme.textSecondary,
+                      ),
                       const SizedBox(height: 12),
                       const Text(
                         'Не удалось загрузить карточки',
                         style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.w600),
+                          color: AppTheme.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       const Text(
@@ -236,7 +256,9 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                       'Карточки ${_index + 1}/${_deck.length}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 40),
@@ -252,8 +274,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                     height: 6,
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     decoration: BoxDecoration(
-                      color:
-                          i == _index ? AppTheme.primary : AppTheme.border,
+                      color: i == _index ? AppTheme.primary : AppTheme.border,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -285,7 +306,8 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                             child: GestureDetector(
                               onTap: isCurrent
                                   ? () => setState(
-                                      () => _showTranslation = !showBack)
+                                      () => _showTranslation = !showBack,
+                                    )
                                   : null,
                               child: AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 220),
@@ -312,15 +334,19 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
               const SizedBox(height: 14),
               OutlinedButton.icon(
                 onPressed: _openSaved,
-                icon: const Icon(Icons.star_outline,
-                    color: AppTheme.textPrimary, size: 20),
+                icon: const Icon(
+                  Icons.star_outline,
+                  color: AppTheme.textPrimary,
+                  size: 20,
+                ),
                 label: const Text('Сохраненные слова'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.textPrimary,
                   side: const BorderSide(color: AppTheme.border),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(22)),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
                 ),
               ),
             ],
@@ -338,21 +364,23 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         starFilled: interactive ? _starFilled : false,
         onStar: interactive ? _toggleStar : null,
         starBusy: interactive && _starBusy,
+        isPlaying: _audioState == PlayerState.playing,
+        onPlayAudio: interactive && item.audioUrl != null
+            ? () => _playAudio(item.audioUrl!)
+            : null,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               item.kazakh,
-              style: const TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
             ),
             if (item.pronunciation.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 '[${item.pronunciation}]',
-                style:
-                    TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
             ],
           ],
@@ -369,12 +397,41 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         starFilled: interactive ? _starFilled : false,
         onStar: interactive ? _toggleStar : null,
         starBusy: interactive && _starBusy,
+        isPlaying: _audioState == PlayerState.playing,
+        onPlayAudio: interactive && item.audioUrl != null
+            ? () => _playAudio(item.audioUrl!)
+            : null,
         child: Text(
           item.russian,
-          style: const TextStyle(
-              fontSize: 20, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
           textAlign: TextAlign.center,
         ),
+      ),
+    );
+  }
+
+  void _showCustomSnackBar(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        backgroundColor: const Color(0xFFF0EFEA),
+        behavior: SnackBarBehavior.floating,
+        elevation: 4,
+        margin: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(25),
+          side: const BorderSide(color: AppTheme.border, width: 1),
+        ),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -385,19 +442,26 @@ class _FlashCard extends StatelessWidget {
   final bool starFilled;
   final VoidCallback? onStar;
   final bool starBusy;
+  final VoidCallback? onPlayAudio;
+  final bool isPlaying;
 
   const _FlashCard({
     required this.child,
     required this.starFilled,
     required this.onStar,
     required this.starBusy,
+    this.onPlayAudio,
+    required this.isPlaying,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(
-          maxWidth: 268, minHeight: 138, maxHeight: 220),
+        maxWidth: 268,
+        minHeight: 138,
+        maxHeight: 220,
+      ),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -420,16 +484,18 @@ class _FlashCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _RoundIcon(
-                    icon: Icons.volume_up_outlined, onPressed: () {}),
+                  icon: isPlaying
+                      ? Icons.stop_rounded
+                      : Icons.volume_up_outlined,
+                  onPressed: onPlayAudio,
+                ),
                 const SizedBox(width: 6),
                 _RoundIcon(
                   icon: starFilled
                       ? Icons.star_rounded
                       : Icons.star_border_rounded,
-                  onPressed:
-                      (onStar != null && !starBusy) ? onStar : null,
-                  iconColor:
-                      starFilled ? Colors.amber.shade800 : null,
+                  onPressed: (onStar != null && !starBusy) ? onStar : null,
+                  iconColor: starFilled ? Colors.amber.shade800 : null,
                 ),
               ],
             ),
@@ -454,9 +520,7 @@ class _DeckNavArrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: enabled
-          ? AppTheme.primary
-          : AppTheme.primary.withOpacity(0.32),
+      color: enabled ? AppTheme.primary : AppTheme.primary.withOpacity(0.32),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -493,11 +557,11 @@ class _RoundIcon extends StatelessWidget {
         onTap: onPressed,
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon,
-              size: 20,
-              color: onPressed == null
-                  ? color.withOpacity(0.45)
-                  : color),
+          child: Icon(
+            icon,
+            size: 20,
+            color: onPressed == null ? color.withOpacity(0.45) : color,
+          ),
         ),
       ),
     );

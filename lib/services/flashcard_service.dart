@@ -7,6 +7,7 @@ class FlashcardModel {
   final String wordKz;
   final String? transcription;
   final String? exampleSentence;
+  final String? audioUrl;
 
   FlashcardModel({
     required this.id,
@@ -14,15 +15,17 @@ class FlashcardModel {
     required this.wordKz,
     this.transcription,
     this.exampleSentence,
+    this.audioUrl,
   });
 
   factory FlashcardModel.fromJson(Map<String, dynamic> json) {
     return FlashcardModel(
       id: json['id'] as String,
-      wordRu: json['wordRu'] as String,
-      wordKz: json['wordKz'] as String,
-      transcription: json['transcription'] as String?,
+      wordRu: json['wordRu'] as String? ?? '',
+      wordKz: json['wordKz'] as String? ?? '',
+      transcription: json['transcription'] as String? ?? '',
       exampleSentence: json['exampleSentence'] as String?,
+      audioUrl: json['audioUrl'] as String?,
     );
   }
 }
@@ -35,7 +38,10 @@ class FlashcardService {
   /// Returns an **empty list** when the server responds successfully but has
   /// no cards yet.  Returns **null** on any network/server error so callers
   /// can distinguish "no cards" from "request failed".
-  static Future<List<FlashcardModel>?> getAll({int page = 0, int size = 50}) async {
+  static Future<List<FlashcardModel>?> getAll({
+    int page = 0,
+    int size = 50,
+  }) async {
     try {
       final response = await _apiClient.get(
         '/flashcards',
@@ -43,13 +49,14 @@ class FlashcardService {
       );
 
       if (response.data is! Map<String, dynamic>) {
-        debugPrint('FlashcardService: unexpected response format: ${response.data}');
+        debugPrint(
+          'FlashcardService: unexpected response format: ${response.data}',
+        );
         return null;
       }
 
       final data = response.data as Map<String, dynamic>;
-      final List content = data['content'] ?? [];
-
+      final List content = (data['content'] as List?) ?? [];
       return content
           .map((item) => FlashcardModel.fromJson(item as Map<String, dynamic>))
           .toList();
