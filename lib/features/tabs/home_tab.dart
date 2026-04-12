@@ -109,7 +109,6 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Future<void> _startLesson() async {
-    // Открываем первый доступный незавершённый урок напрямую в ExerciseScreen
     await HomeLevelMap.openRecommendedLesson(context);
     await _mapKey.currentState?.reloadProgress();
     if (mounted) {

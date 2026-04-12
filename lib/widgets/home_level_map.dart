@@ -91,7 +91,12 @@ class _LevelPathPainter extends CustomPainter {
   final ui.Image? horseLeft;
   final ui.Image? horseRight;
 
-  _LevelPathPainter({required this.points, required this.lessons, this.horseLeft, this.horseRight});
+  _LevelPathPainter({
+    required this.points,
+    required this.lessons,
+    this.horseLeft,
+    this.horseRight,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -126,21 +131,23 @@ class _LevelPathPainter extends CustomPainter {
   void _drawHorseImage(Canvas canvas, Offset p0, Offset p1, int index) {
     const double t = 0.5;
     final horsePos = _getBezierPoint(p0, p1, t, index);
-
     double angle = _getBezierAngle(p0, p1, t, index);
 
-    final ui.Image? image = (index % 2 == 0) ? horseLeft : horseRight;
+    final bool isHorseRight = (index % 2 == 0);
+    final ui.Image? image = isHorseRight ? horseLeft : horseRight;
 
     if (image != null) {
       const double imgSize = 65.0;
 
       canvas.save();
-
       canvas.translate(horsePos.dx, horsePos.dy - 30);
 
-      if (angle.abs() > math.pi / 2) {
-        angle += math.pi;
+      if (isHorseRight) {
+        if (angle > 0) angle -= math.pi;
+      } else {
+        if (angle.abs() > math.pi / 2) angle += math.pi;
       }
+
       angle *= 0.45;
 
       canvas.rotate(angle);
