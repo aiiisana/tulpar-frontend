@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../widgets/circle_back_button.dart';
+import '../../widgets/default_popup.dart';
 import 'club_agreement_screen.dart';
 
 class SpeakingClubsScreen extends StatelessWidget {
@@ -121,7 +122,15 @@ class _ClubCard extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: () {},
+                // --- ЗАМЕНЯЕМ ТУТ ---
+                onPressed: () {
+                  DefaultPopup.show(
+                    context,
+                    message: 'Эта функция появится в будущих версиях!',
+                    buttonText: 'Понятно',
+                  );
+                },
+                // --------------------
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -134,7 +143,7 @@ class _ClubCard extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  'Войти',
+                  'Зарегистрироваться',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
