@@ -57,12 +57,13 @@ class ProfileModel {
       };
 
   /// DailyGoal → минуты (для отображения в UI)
+  /// CASUAL=5, REGULAR=10, SERIOUS=20, INTENSE=30
   int get goalMinutes => switch (dailyGoal) {
-        'CASUAL'  => 15,
-        'REGULAR' => 30,
-        'SERIOUS' => 45,
-        'INTENSE' => 60,
-        _         => 15,
+        'CASUAL'  => 5,
+        'REGULAR' => 10,
+        'SERIOUS' => 20,
+        'INTENSE' => 30,
+        _         => 5,
       };
 }
 
@@ -167,10 +168,11 @@ class ProfileService {
     }
   }
 
+  /// Точное соответствие вариантам UI: 5→CASUAL, 10→REGULAR, 20→SERIOUS, 30→INTENSE
   static String _minutesToEnum(int minutes) => switch (minutes) {
-        <= 15 => 'CASUAL',
-        <= 30 => 'REGULAR',
-        <= 45 => 'SERIOUS',
+        <= 5  => 'CASUAL',
+        <= 10 => 'REGULAR',
+        <= 20 => 'SERIOUS',
         _     => 'INTENSE',
       };
 }

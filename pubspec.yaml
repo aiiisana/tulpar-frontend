@@ -93,10 +93,12 @@ flutter:
     - assets/images/dailygoal2.png
     - assets/images/dailygoal3.png
     - assets/images/dailygoal4.png
+    - assets/images/alphabet.png
     - assets/images/Vector.png
     - assets/images/Vector-2.png
     - assets/images/background.png
     - assets/images/background-2.png
+    - assets/images/badge_icon.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

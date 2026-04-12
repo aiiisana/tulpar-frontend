@@ -46,7 +46,7 @@ class LearningTab extends StatelessWidget {
       _LearningItem(title: s.learnArticles, imagePath: 'assets/images/articles.png', builder: _openArticles),
       _LearningItem(title: s.learnAi, imagePath: 'assets/images/ai_assistant.png', builder: _openAi),
       _LearningItem(title: s.learnGrammar, imagePath: 'assets/images/grammar.png', builder: _openGrammar),
-      _LearningItem(title: s.learnSample, imagePath: 'assets/images/grammar.png', builder: _openAlphabet),
+      _LearningItem(title: s.learnSample, imagePath: 'assets/images/alphabet.png', builder: _openAlphabet),
     ];
 
     return Padding(

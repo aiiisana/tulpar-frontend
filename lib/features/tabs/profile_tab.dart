@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../app/ui_locale.dart';
 import '../../services/profile_service.dart';
 import '../../services/progress_service.dart';
+import '../../services/session_time_service.dart';
 import '../../services/stats_service.dart';
 import '../settings/settings_screen.dart';
 
@@ -32,6 +33,9 @@ class _ProfileTabState extends State<ProfileTab> {
   bool _loadingProfile = true;
   String? _avatarUrl;
   bool _uploadingAvatar = false;
+
+  // Session time today
+  SessionTimeModel _sessionTime = SessionTimeModel.empty;
 
   @override
   void initState() {
@@ -67,6 +71,12 @@ class _ProfileTabState extends State<ProfileTab> {
       summary = await ProgressService.getSummary();
     } catch (_) {}
 
+    // Fetch today's session time
+    SessionTimeModel? sessionTime;
+    try {
+      sessionTime = await SessionTimeService.getTodayTime();
+    } catch (_) {}
+
     if (!mounted) return;
 
     setState(() {
@@ -74,6 +84,7 @@ class _ProfileTabState extends State<ProfileTab> {
       completedLessons = done.length;
       totalExercisesCompleted = summary.totalCompleted;
       totalExercisesFailed    = summary.totalFailed;
+      if (sessionTime != null) _sessionTime = sessionTime;
       _loadingProfile = false;
 
       if (profile != null) {
@@ -106,6 +117,19 @@ class _ProfileTabState extends State<ProfileTab> {
         goalMin = gMin ?? 15;
       });
     }
+  }
+
+  /// Builds the session-time display string shown in the progress block.
+  String _buildTimeText() {
+    final total = _sessionTime.formattedTotal;
+    if (_sessionTime.goalSeconds <= 0) {
+      return 'Сегодня в приложении: $total';
+    }
+    final goalMin = _sessionTime.goalSeconds ~/ 60;
+    if (_sessionTime.goalMet) {
+      return 'Сегодня в приложении: $total ✓ Цель выполнена!';
+    }
+    return 'Сегодня в приложении: $total (цель: $goalMin мин)';
   }
 
   String _buildDisplayName(String? first, String? last, String placeholder) {
@@ -328,7 +352,8 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _changeGoal() async {
     final s = AppStr.fromContext(UiLocaleScope.langOf(context));
-    final options = [2, 5, 10, 15, 20, 25];
+    // Варианты соответствуют enum: CASUAL=5, REGULAR=10, SERIOUS=20, INTENSE=30
+    final options = [5, 10, 20, 30];
 
     final chosen = await showModalBottomSheet<int>(
       context: context,
@@ -565,6 +590,10 @@ class _ProfileTabState extends State<ProfileTab> {
                 _InfoRow(
                     icon: Icons.cancel_outlined,
                     text: 'Ошибок: $totalExercisesFailed'),
+              _InfoRow(
+                icon: Icons.timer_outlined,
+                text: _buildTimeText(),
+              ),
             ],
           ),
 

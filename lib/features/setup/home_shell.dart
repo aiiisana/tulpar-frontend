@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_strings.dart';
 import '../../app/theme.dart';
 import '../../app/ui_locale.dart';
+import '../../services/session_time_service.dart';
 import '../tabs/home_tab.dart';
 import '../tabs/learning_tab.dart';
 import '../tabs/tasks_tab.dart';
@@ -14,7 +15,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int index = 0;
 
   late final List<Widget> pages = [
@@ -23,6 +24,41 @@ class _HomeShellState extends State<HomeShell> {
     const TasksTab(),
     const ProfileTab(),
   ];
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Start counting time as soon as the home shell is mounted (user is active).
+    SessionTimeService.startSession();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Flush any remaining time when the widget is destroyed.
+    SessionTimeService.flushSession();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App came back to foreground — start a new segment.
+        SessionTimeService.startSession();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        // App going to background / closing — flush accumulated time.
+        SessionTimeService.flushSession();
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -30,6 +30,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   bool _submitted = false;
   bool _isCorrect = false;
   bool _xpAwarded = false;
+  bool _completedToday = false;
 
   @override
   void initState() {
@@ -38,6 +39,16 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Future<void> _load() async {
+    final alreadyDone = !(await DailyChallengeService.canEarnXpToday());
+    if (!mounted) return;
+    if (alreadyDone) {
+      setState(() {
+        _completedToday = true;
+        _loading = false;
+      });
+      return;
+    }
+
     final challenge = await DailyChallengeService.getToday();
     if (!mounted) return;
     if (challenge == null) {
@@ -53,6 +64,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
       _chosen = [];
       _submitted = false;
       _isCorrect = false;
+      _completedToday = false;
       _loading = false;
     });
   }
@@ -77,7 +89,6 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     if (_challenge == null) return;
     final answer = _chosen.join();
 
-    // Сначала показываем, что проверяем
     setState(() => _submitted = true);
 
     final result = await DailyChallengeService.submitAnswer(
@@ -89,7 +100,6 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     setState(() {
       _isCorrect = result.correct;
       _xpAwarded = result.xpAwarded > 0;
-      // Сохраняем правильное слово из ответа бэкенда (на случай если correctWord был null)
       if (result.correctWord.isNotEmpty && _challenge!.correctWord == null) {
         _challenge = DailyChallengeModel(
           id:            _challenge!.id,
@@ -100,6 +110,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
           correctWord:   result.correctWord,
         );
       }
+      if (result.correct) _completedToday = true;
     });
   }
 
@@ -135,9 +146,86 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _noChallenge
-              ? _noTaskState()
-              : _challengeBody(),
+          : _completedToday
+              ? _completedState()
+              : _noChallenge
+                  ? _noTaskState()
+                  : _challengeBody(),
+    );
+  }
+
+  // ── Задание выполнено сегодня ─────────────────────────────────────────────
+
+  Widget _completedState() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        padding: const EdgeInsets.all(32),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E2DA),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Вы выполнили\nзадание дня!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 40),
+            const Text(
+              'Жарайсың!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const Text(
+              'Возвращайтесь завтра!',
+              style: TextStyle(fontSize: 16, color: Colors.black54),
+            ),
+            const SizedBox(height: 60),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4A614B),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Text(
+                '+ 5 XP | Серия продолжается',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(height: 60),
+            Opacity(
+              opacity: 0.3,
+              child: Image.asset(
+                'assets/images/badge_icon.png',
+                width: 100,
+                color: Colors.black,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.stars_outlined, size: 100),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
