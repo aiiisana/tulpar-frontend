@@ -11,17 +11,38 @@ enum DifficultyLevel {
 class ArticleModel {
   final String id;
   final String title;
+  final String titleKz;
   final String? content;
+  final String? contentKz;
+  final String? imageUrl;
   final DifficultyLevel difficultyLevel;
   final String createdAt;
 
   ArticleModel({
     required this.id,
     required this.title,
+    required this.titleKz,
     this.content,
+    this.contentKz,
+    this.imageUrl,
     required this.difficultyLevel,
     required this.createdAt,
   });
+
+  String displayTitle(bool isKz) => isKz ? titleKz : title;
+  String? displayContent(bool isKz) => isKz ? contentKz : content;
+
+  String getDifficulty(bool isKz) {
+    if (isKz) {
+      switch (difficultyLevel) {
+        case DifficultyLevel.BEGINNER: return 'Бастапқы';
+        case DifficultyLevel.ELEMENTARY: return 'Қарапайым';
+        case DifficultyLevel.INTERMEDIATE: return 'Орташа';
+        case DifficultyLevel.ADVANCED: return 'Жоғары';
+      }
+    }
+    return difficultyRu;
+  }
 
   String get difficultyRu {
     switch (difficultyLevel) {
@@ -40,7 +61,10 @@ class ArticleModel {
     return ArticleModel(
       id: json['id'] as String,
       title: json['title'] as String,
+      titleKz: json['titleKz'] as String? ?? json['title'] as String,
       content: json['content'] as String?,
+      contentKz: json['contentKz'] as String?,
+      imageUrl: json['imageUrl'] as String?,
       difficultyLevel: _parseDifficultyLevel(json['difficultyLevel'] as String),
       createdAt: json['createdAt'] as String,
     );

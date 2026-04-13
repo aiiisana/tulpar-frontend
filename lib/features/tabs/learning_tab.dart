@@ -3,7 +3,7 @@ import '../../app/app_strings.dart';
 import '../../app/theme.dart';
 import '../../app/ui_locale.dart';
 import '../learning_content/ai_assistant_screen.dart';
-import '../learning_content/articles_screen.dart';
+import '../articles/articles_screen.dart';
 import '../learning_content/flashcards_screen.dart';
 import '../learning_content/grammar_screen.dart';
 import '../learning_content/alphabet_module_screen.dart';
