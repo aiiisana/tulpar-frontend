@@ -6,6 +6,7 @@ import 'package:tulpar_front/features/setup/home_shell.dart';
 import '../../app/theme.dart';
 import '../../app/app_storage.dart';
 import '../../services/onboarding_service.dart';
+import '../../services/profile_service.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/social_auth_row.dart';
 import 'login_screen.dart';
@@ -121,6 +122,10 @@ class _SignupScreenState extends State<SignupScreen> {
         last.isEmpty ? firstName : '$firstName $last',
       );
 
+      // Сохраняем имя на бэкенд (username = "Имя Фамилия")
+      final fullName = last.isEmpty ? firstName : '$firstName $last';
+      ProfileService.updateUsername(fullName).ignore();
+
       await _goNextAfterAuth();
     } on FirebaseAuthException catch (e) {
       setState(() => errorMessage = _mapError(e.code));
@@ -177,6 +182,8 @@ class _SignupScreenState extends State<SignupScreen> {
       firstName: parts.first,
       lastName: parts.length > 1 ? parts.sublist(1).join(' ') : '',
     );
+    // Persist to backend so every device/login sees the same username
+    ProfileService.updateUsername(name).ignore();
   }
 
   String _mapError(String code) => switch (code) {

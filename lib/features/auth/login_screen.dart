@@ -5,6 +5,7 @@ import 'package:tulpar_front/features/auth/set_pin_screen.dart';
 import 'package:tulpar_front/features/setup/home_shell.dart';
 import '../../app/theme.dart';
 import '../../app/app_storage.dart';
+import '../../services/profile_service.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/social_auth_row.dart';
 import 'signup_screen.dart';
@@ -147,6 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
       firstName: parts.first,
       lastName: parts.length > 1 ? parts.sublist(1).join(' ') : '',
     );
+    // Sync to backend so username is correct regardless of which device the
+    // user logs in from (backend is source of truth)
+    ProfileService.updateUsername(name).ignore();
   }
 
   String _mapError(String code) => switch (code) {

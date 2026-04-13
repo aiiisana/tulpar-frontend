@@ -175,7 +175,7 @@ class _HomeTabState extends State<HomeTab> {
                       child: Center(
                         child: ClipOval(
                           child: Image.network(
-                            key: ValueKey(imageUrl), // обязательно
+                            key: ValueKey(imageUrl),
                             imageUrl ?? '',
                             width: 40,
                             height: 40,

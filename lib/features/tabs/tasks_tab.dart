@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../app/app_strings.dart';
 import '../../app/content_assets.dart';
@@ -10,7 +11,9 @@ import '../../services/daily_challenge_service.dart';
 /// Loads today's challenge from the backend.
 /// Falls back to a placeholder UI when no challenge is available.
 class TasksTab extends StatefulWidget {
-  const TasksTab({super.key});
+  final VoidCallback? onProfileTap;
+
+  const TasksTab({super.key, this.onProfileTap});
 
   @override
   State<TasksTab> createState() => _TasksTabState();
@@ -47,15 +50,19 @@ class _TasksTabState extends State<TasksTab> {
       _submitted = false;
     });
 
-    // Если задание уже выполнено сегодня — сразу экран «молодец»
-    final alreadyDone = !(await DailyChallengeService.canEarnXpToday());
-    if (!mounted) return;
-    if (alreadyDone) {
-      setState(() {
-        _completedToday = true;
-        _loading = false;
-      });
-      return;
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    // Fast local check to avoid a network round-trip when already done today
+    if (userId.isNotEmpty) {
+      final localDone = !(await DailyChallengeService.canEarnXpToday(userId));
+      if (!mounted) return;
+      if (localDone) {
+        setState(() {
+          _completedToday = true;
+          _loading = false;
+        });
+        return;
+      }
     }
 
     final challenge = await DailyChallengeService.getToday();
@@ -65,6 +72,16 @@ class _TasksTabState extends State<TasksTab> {
       setState(() {
         _loading = false;
         _noChallenge = true;
+      });
+      return;
+    }
+
+    // Backend is the source of truth: if the server says this user already
+    // completed it today, show the completed screen immediately.
+    if (challenge.completedByCurrentUser) {
+      setState(() {
+        _completedToday = true;
+        _loading = false;
       });
       return;
     }
@@ -100,9 +117,11 @@ class _TasksTabState extends State<TasksTab> {
 
     setState(() => _submitted = true);
 
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final result = await DailyChallengeService.submitAnswer(
       challengeId: _challenge!.id,
       answer: _slots.join(),
+      userId: userId,
     );
 
     if (!mounted) return;
@@ -179,26 +198,28 @@ class _TasksTabState extends State<TasksTab> {
               style: TextStyle(fontSize: 16, color: Colors.black54),
             ),
             const SizedBox(height: 60),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4A614B),
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    spreadRadius: 2,
+            GestureDetector(
+              onTap: widget.onProfileTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A614B),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  '+ 10 XP | Серия продолжается',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
                   ),
-                ],
-              ),
-              child: const Text(
-                '+ 5 XP | Серия продолжается',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
                 ),
               ),
             ),

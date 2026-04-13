@@ -9,6 +9,8 @@ class DailyChallengeModel {
   final List<String> imageUrls;
   final int wordLength;
   final String? correctWord;
+  /// Backend tells us whether THIS user already completed the challenge today.
+  final bool completedByCurrentUser;
 
   DailyChallengeModel({
     required this.id,
@@ -17,6 +19,7 @@ class DailyChallengeModel {
     required this.imageUrls,
     required this.wordLength,
     this.correctWord,
+    this.completedByCurrentUser = false,
   });
 
   factory DailyChallengeModel.fromJson(Map<String, dynamic> json) {
@@ -33,6 +36,7 @@ class DailyChallengeModel {
       imageUrls: List<String>.from(json['imageUrls'] as List<dynamic>? ?? []),
       wordLength: wordLength,
       correctWord: correctWord,
+      completedByCurrentUser: json['completedByCurrentUser'] as bool? ?? false,
     );
   }
 }
@@ -51,7 +55,10 @@ class DailyChallengeSubmitResult {
 
 class DailyChallengeService {
   static final ApiClient _apiClient = ApiClient();
-  static const _kXpDateKey = 'daily_challenge_xp_date';
+
+  /// SharedPrefs key is scoped per-user so different accounts on the same
+  /// device don't share completion state.
+  static String _xpDateKey(String userId) => 'daily_challenge_xp_date_$userId';
 
   static Future<DailyChallengeModel?> getToday() async {
     try {
@@ -63,19 +70,22 @@ class DailyChallengeService {
     }
   }
 
-  /// Возвращает true если +10 XP за сегодня ещё не начислялись.
-  static Future<bool> canEarnXpToday() async {
+  /// Returns true if this [userId] has NOT yet earned XP today.
+  /// Primary source of truth is the backend flag [DailyChallengeModel.completedByCurrentUser];
+  /// this is a local fallback used before the network response arrives.
+  static Future<bool> canEarnXpToday(String userId) async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_kXpDateKey) ?? '';
-    final today = _todayStr();
-    return saved != today;
+    final saved = prefs.getString(_xpDateKey(userId)) ?? '';
+    return saved != _todayStr();
   }
 
-  /// Отправляет ответ на бэкенд, проверяет правильность и начисляет +10 XP.
-  /// Возвращает [DailyChallengeSubmitResult] с полями correct, xpAwarded, correctWord.
+  /// Sends the user's answer to the backend.
+  /// On correct answer saves today's date locally (per-user key) to avoid
+  /// an extra round-trip on the next app launch.
   static Future<DailyChallengeSubmitResult> submitAnswer({
     required String challengeId,
     required String answer,
+    required String userId,
   }) async {
     try {
       final response = await _apiClient.post(
@@ -92,30 +102,16 @@ class DailyChallengeService {
         correctWord: data['correctWord'] as String? ?? '',
       );
 
-      // Локальный кэш: не спрашиваем снова сегодня
+      // Per-user local cache so we don't hit network unnecessarily next launch
       if (result.correct) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_kXpDateKey, _todayStr());
+        await prefs.setString(_xpDateKey(userId), _todayStr());
       }
       return result;
     } catch (e) {
       debugPrint('[DailyChallenge] submitAnswer failed: $e');
       return DailyChallengeSubmitResult(correct: false, xpAwarded: 0, correctWord: '');
     }
-  }
-
-  /// Legacy: используется только если нет данных об ответе.
-  static Future<bool> completeChallenge(String challengeId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final today = _todayStr();
-    if (prefs.getString(_kXpDateKey) == today) return false;
-    try {
-      await _apiClient.post('/daily-challenge/$challengeId/complete');
-    } catch (e) {
-      debugPrint('[DailyChallenge] complete failed: $e');
-    }
-    await prefs.setString(_kXpDateKey, today);
-    return true;
   }
 
   static String _todayStr() {

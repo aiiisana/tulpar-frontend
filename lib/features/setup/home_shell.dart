@@ -21,7 +21,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   late final List<Widget> pages = [
     HomeTab(onProfileTap: () => setState(() => index = 3)),
     const LearningTab(),
-    const TasksTab(),
+    TasksTab(onProfileTap: () => setState(() => index = 3)),
     const ProfileTab(),
   ];
 

@@ -44,6 +44,15 @@ class SessionTimeService {
     }
   }
 
+  // ── Live session ───────────────────────────────────────────────────────────
+
+  /// Seconds elapsed in the current active session (not yet flushed to backend).
+  static int get currentSessionSeconds {
+    final start = _sessionStart;
+    if (start == null) return 0;
+    return DateTime.now().difference(start).inSeconds;
+  }
+
   // ── Query ──────────────────────────────────────────────────────────────────
 
   /// Fetch today's accumulated session time and daily goal from the backend.

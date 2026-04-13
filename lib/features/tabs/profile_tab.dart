@@ -27,6 +27,7 @@ class _ProfileTabState extends State<ProfileTab> {
   int streakDays = 0;
   int completedLessons = 0;
   int totalXp = 0;
+
   // Progress summary from backend
   int totalExercisesCompleted = 0;
   int totalExercisesFailed = 0;
@@ -83,7 +84,7 @@ class _ProfileTabState extends State<ProfileTab> {
       uiLang = lang;
       completedLessons = done.length;
       totalExercisesCompleted = summary.totalCompleted;
-      totalExercisesFailed    = summary.totalFailed;
+      totalExercisesFailed = summary.totalFailed;
       if (sessionTime != null) _sessionTime = sessionTime;
       _loadingProfile = false;
 
@@ -120,13 +121,25 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   /// Builds the session-time display string shown in the progress block.
+  /// Combines backend-stored seconds with the currently active (unflushed) session.
   String _buildTimeText() {
-    final total = _sessionTime.formattedTotal;
+    final totalSec =
+        _sessionTime.totalSeconds + SessionTimeService.currentSessionSeconds;
+
+    final h = totalSec ~/ 3600;
+    final m = (totalSec % 3600) ~/ 60;
+    final total = h > 0
+        ? '${h}ч ${m}мин'
+        : m > 0
+            ? '$m мин'
+            : '< 1 мин';
+
     if (_sessionTime.goalSeconds <= 0) {
       return 'Сегодня в приложении: $total';
     }
     final goalMin = _sessionTime.goalSeconds ~/ 60;
-    if (_sessionTime.goalMet) {
+    final goalMet = totalSec >= _sessionTime.goalSeconds;
+    if (goalMet) {
       return 'Сегодня в приложении: $total ✓ Цель выполнена!';
     }
     return 'Сегодня в приложении: $total (цель: $goalMin мин)';
@@ -197,12 +210,12 @@ class _ProfileTabState extends State<ProfileTab> {
         initFirst = displayName;
       } else {
         initFirst = displayName.substring(0, spaceIdx).trim();
-        initLast  = displayName.substring(spaceIdx + 1).trim();
+        initLast = displayName.substring(spaceIdx + 1).trim();
       }
     }
 
     final controllerFirst = TextEditingController(text: initFirst);
-    final controllerLast  = TextEditingController(text: initLast);
+    final controllerLast = TextEditingController(text: initLast);
 
     final saved = await showDialog<bool>(
       context: context,
@@ -226,11 +239,13 @@ class _ProfileTabState extends State<ProfileTab> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(s.cancel)),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.cancel),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(s.save)),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.save),
+          ),
         ],
       ),
     );
@@ -238,7 +253,7 @@ class _ProfileTabState extends State<ProfileTab> {
     if (saved != true) return;
 
     final newFirst = controllerFirst.text.trim();
-    final newLast  = controllerLast.text.trim();
+    final newLast = controllerLast.text.trim();
     if (newFirst.isEmpty) return;
 
     final fullName = newLast.isEmpty ? newFirst : '$newFirst $newLast';
@@ -263,10 +278,10 @@ class _ProfileTabState extends State<ProfileTab> {
 
     // Список уровней: [apiValue, название на русском, описание]
     const levels = [
-      ('BEGINNER',     'Начинающий',   'Базовые слова и простые фразы'),
-      ('ELEMENTARY',   'Элементарный', 'Простые предложения и диалоги'),
-      ('INTERMEDIATE', 'Средний',      'Разговорная речь и грамматика'),
-      ('ADVANCED',     'Продвинутый',  'Сложный текст и беглая речь'),
+      ('BEGINNER', 'Начинающий', 'Базовые слова и простые фразы'),
+      ('ELEMENTARY', 'Элементарный', 'Простые предложения и диалоги'),
+      ('INTERMEDIATE', 'Средний', 'Разговорная речь и грамматика'),
+      ('ADVANCED', 'Продвинутый', 'Сложный текст и беглая речь'),
     ];
 
     final chosen = await showModalBottomSheet<String>(
@@ -281,7 +296,8 @@ class _ProfileTabState extends State<ProfileTab> {
             const SizedBox(height: 8),
             // Drag handle
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2),
@@ -306,14 +322,30 @@ class _ProfileTabState extends State<ProfileTab> {
             const SizedBox(height: 12),
             for (final (api, name, desc) in levels)
               ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-                title: Text(name,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                subtitle: Text(desc,
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 2,
+                ),
+                title: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  desc,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
                 trailing: levelLabel == name
                     ? const Icon(Icons.check_circle, color: AppTheme.primary)
-                    : const Icon(Icons.circle_outlined, color: AppTheme.textSecondary),
+                    : const Icon(
+                        Icons.circle_outlined,
+                        color: AppTheme.textSecondary,
+                      ),
                 onTap: () => Navigator.pop(context, api),
               ),
             const SizedBox(height: 8),
@@ -326,11 +358,11 @@ class _ProfileTabState extends State<ProfileTab> {
 
     // Если выбрали тот же уровень — ничего не делаем
     final currentApi = switch (levelLabel) {
-      'Начинающий'   => 'BEGINNER',
+      'Начинающий' => 'BEGINNER',
       'Элементарный' => 'ELEMENTARY',
-      'Средний'      => 'INTERMEDIATE',
-      'Продвинутый'  => 'ADVANCED',
-      _              => '',
+      'Средний' => 'INTERMEDIATE',
+      'Продвинутый' => 'ADVANCED',
+      _ => '',
     };
     if (chosen == currentApi) return;
 
@@ -368,8 +400,7 @@ class _ProfileTabState extends State<ProfileTab> {
             for (final m in options)
               ListTile(
                 title: Text('$m ${s.en ? 'min' : 'мин'}'),
-                trailing:
-                    m == goalMin ? const Icon(Icons.check) : null,
+                trailing: m == goalMin ? const Icon(Icons.check) : null,
                 onTap: () => Navigator.pop(context, m),
               ),
           ],
@@ -406,14 +437,12 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
             ListTile(
               title: Text(s.russian),
-              trailing:
-                  uiLang == 'ru' ? const Icon(Icons.check) : null,
+              trailing: uiLang == 'ru' ? const Icon(Icons.check) : null,
               onTap: () => Navigator.pop(context, 'ru'),
             ),
             ListTile(
               title: Text(s.english),
-              trailing:
-                  uiLang == 'en' ? const Icon(Icons.check) : null,
+              trailing: uiLang == 'en' ? const Icon(Icons.check) : null,
               onTap: () => Navigator.pop(context, 'en'),
             ),
             const SizedBox(height: 10),
@@ -439,33 +468,40 @@ class _ProfileTabState extends State<ProfileTab> {
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Center(
-                  child: Text(
-                    s.profileTitle,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Text(
+                  s.profileTitle,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-              IconButton(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const SettingsScreen()),
-                  );
-                  // Reload profile after returning from settings
-                  if (mounted) await _load();
-                },
-                icon: const Icon(Icons.settings,
-                    color: AppTheme.textPrimary),
-              ),
-            ],
+                Positioned(
+                  right: 0,
+                  child: IconButton(
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                      if (mounted) await _load();
+                    },
+                    icon: const Icon(
+                      Icons.settings,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-
           const SizedBox(height: 12),
 
           // ── Avatar + name block ─────────────────────────────────────────
@@ -485,9 +521,10 @@ class _ProfileTabState extends State<ProfileTab> {
                           shape: BoxShape.circle,
                           boxShadow: const [
                             BoxShadow(
-                                blurRadius: 10,
-                                offset: Offset(0, 6),
-                                color: Color(0x22000000))
+                              blurRadius: 10,
+                              offset: Offset(0, 6),
+                              color: Color(0x22000000),
+                            ),
                           ],
                         ),
                         clipBehavior: Clip.antiAlias,
@@ -497,22 +534,27 @@ class _ProfileTabState extends State<ProfileTab> {
                                   width: 28,
                                   height: 28,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2),
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               )
                             : _avatarUrl != null
-                                ? Image.network(
-                                    key: ValueKey(_avatarUrl),
-                                    _avatarUrl!,
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, _) {
-                                      debugPrint('[Avatar] load error: $error, url: $_avatarUrl');
-                                      return ContentAssets.profileAvatarWidget(size: 72);
-                                    },
-                                  )
-                                : ContentAssets.profileAvatarWidget(size: 72),
+                            ? Image.network(
+                                key: ValueKey(_avatarUrl),
+                                _avatarUrl!,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, _) {
+                                  debugPrint(
+                                    '[Avatar] load error: $error, url: $_avatarUrl',
+                                  );
+                                  return ContentAssets.profileAvatarWidget(
+                                    size: 72,
+                                  );
+                                },
+                              )
+                            : ContentAssets.profileAvatarWidget(size: 72),
                       ),
                       Positioned(
                         bottom: 0,
@@ -524,8 +566,11 @@ class _ProfileTabState extends State<ProfileTab> {
                             color: AppTheme.primary,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.camera_alt,
-                              size: 13, color: Colors.white),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 13,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -538,13 +583,21 @@ class _ProfileTabState extends State<ProfileTab> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Text(displayName,
+                    : Text(
+                        displayName,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
                 const SizedBox(height: 2),
-                Text(levelLabel,
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12)),
+                Text(
+                  levelLabel,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 OutlinedButton(
                   onPressed: _editName,
@@ -552,12 +605,14 @@ class _ProfileTabState extends State<ProfileTab> {
                     foregroundColor: AppTheme.textPrimary,
                     side: const BorderSide(color: AppTheme.border),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18)),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 8),
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
                   ),
-                  child: Text(s.edit,
-                      style: const TextStyle(fontSize: 13)),
+                  child: Text(s.edit, style: const TextStyle(fontSize: 13)),
                 ),
               ],
             ),
@@ -574,26 +629,25 @@ class _ProfileTabState extends State<ProfileTab> {
           _InfoCard(
             items: [
               _InfoRow(
-                  icon: Icons.local_fire_department_outlined,
-                  text: s.streakShort(streakDays)),
+                icon: Icons.local_fire_department_outlined,
+                text: s.streakShort(streakDays),
+              ),
               _InfoRow(
-                  icon: Icons.check_circle_outline,
-                  text: s.lessonsDoneLine(completedLessons)),
-              _InfoRow(
-                  icon: Icons.star_outline,
-                  text: '$totalXp XP'),
+                icon: Icons.check_circle_outline,
+                text: s.lessonsDoneLine(completedLessons),
+              ),
+              _InfoRow(icon: Icons.star_outline, text: '$totalXp XP'),
               if (totalExercisesCompleted > 0)
                 _InfoRow(
-                    icon: Icons.task_alt,
-                    text: 'Упражнений выполнено: $totalExercisesCompleted'),
+                  icon: Icons.task_alt,
+                  text: 'Упражнений выполнено: $totalExercisesCompleted',
+                ),
               if (totalExercisesFailed > 0)
                 _InfoRow(
-                    icon: Icons.cancel_outlined,
-                    text: 'Ошибок: $totalExercisesFailed'),
-              _InfoRow(
-                icon: Icons.timer_outlined,
-                text: _buildTimeText(),
-              ),
+                  icon: Icons.cancel_outlined,
+                  text: 'Ошибок: $totalExercisesFailed',
+                ),
+              _InfoRow(icon: Icons.timer_outlined, text: _buildTimeText()),
             ],
           ),
 
@@ -608,11 +662,13 @@ class _ProfileTabState extends State<ProfileTab> {
           _InfoCard(
             items: [
               _InfoRow(
-                  icon: Icons.emoji_events_outlined,
-                  text: s.streakShort(streakDays)),
+                icon: Icons.emoji_events_outlined,
+                text: s.streakShort(streakDays),
+              ),
               _InfoRow(
-                  icon: Icons.workspace_premium_outlined,
-                  text: s.firstLessonAchievement),
+                icon: Icons.workspace_premium_outlined,
+                text: s.firstLessonAchievement,
+              ),
             ],
           ),
 
@@ -634,20 +690,22 @@ class _ProfileTabState extends State<ProfileTab> {
                   onTap: _changeLevel,
                 ),
                 const Divider(
-                    height: 1,
-                    indent: 12,
-                    endIndent: 12,
-                    color: AppTheme.border),
+                  height: 1,
+                  indent: 12,
+                  endIndent: 12,
+                  color: AppTheme.border,
+                ),
                 _ProfileSettingsTile(
                   title: s.dailyGoal,
                   value: s.minutesValue(goalMin),
                   onTap: _changeGoal,
                 ),
                 const Divider(
-                    height: 1,
-                    indent: 12,
-                    endIndent: 12,
-                    color: AppTheme.border),
+                  height: 1,
+                  indent: 12,
+                  endIndent: 12,
+                  color: AppTheme.border,
+                ),
                 _ProfileSettingsTile(
                   title: s.appLanguage,
                   value: langText,
@@ -666,23 +724,25 @@ class _ProfileTabState extends State<ProfileTab> {
 
 class _SectionTitle extends StatelessWidget {
   final String text;
+
   const _SectionTitle(this.text);
 
   @override
   Widget build(BuildContext context) {
-    return Text(text,
-        style: const TextStyle(fontWeight: FontWeight.w800));
+    return Text(text, style: const TextStyle(fontWeight: FontWeight.w800));
   }
 }
 
 class _InfoRow {
   final IconData icon;
   final String text;
+
   const _InfoRow({required this.icon, required this.text});
 }
 
 class _InfoCard extends StatelessWidget {
   final List<_InfoRow> items;
+
   const _InfoCard({required this.items});
 
   @override
@@ -702,13 +762,14 @@ class _InfoCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(items[i].icon,
-                    size: 20, color: AppTheme.textPrimary),
+                Icon(items[i].icon, size: 20, color: AppTheme.textPrimary),
                 const SizedBox(width: 10),
                 Expanded(
-                    child: Text(items[i].text,
-                        style: const TextStyle(
-                            fontSize: 13, height: 1.25))),
+                  child: Text(
+                    items[i].text,
+                    style: const TextStyle(fontSize: 13, height: 1.25),
+                  ),
+                ),
               ],
             ),
           ],
@@ -734,22 +795,31 @@ class _ProfileSettingsTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         child: Row(
           children: [
             Expanded(
-                child: Text(title,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600))),
-            Text(value,
+              child: Text(
+                title,
                 style: const TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.textSecondary)),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right,
-                color: AppTheme.textSecondary, size: 22),
+            const Icon(
+              Icons.chevron_right,
+              color: AppTheme.textSecondary,
+              size: 22,
+            ),
           ],
         ),
       ),

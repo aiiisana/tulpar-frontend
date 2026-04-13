@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../services/daily_challenge_service.dart';
@@ -39,7 +40,9 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   }
 
   Future<void> _load() async {
-    final alreadyDone = !(await DailyChallengeService.canEarnXpToday());
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final alreadyDone = userId.isNotEmpty &&
+        !(await DailyChallengeService.canEarnXpToday(userId));
     if (!mounted) return;
     if (alreadyDone) {
       setState(() {
@@ -94,6 +97,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     final result = await DailyChallengeService.submitAnswer(
       challengeId: _challenge!.id,
       answer: answer,
+      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
     );
 
     if (!mounted) return;

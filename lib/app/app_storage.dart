@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/saved_flashcard.dart';
@@ -11,8 +12,8 @@ class AppStorage {
   static const _kGoal = 'daily_goal_minutes';
   static const _kEmail = 'auth_email';
   static const _kPassHash = 'auth_pass_hash';
-  static const _kFirstName = 'first_name';
-  static const _kLastName = 'last_name';
+  static const _kFirstNamePrefix = 'first_name';
+  static const _kLastNamePrefix = 'last_name';
   static const _kUiLang = 'ui_lang';
   static const _kBioEnabled = 'bio_enabled';
 
@@ -124,23 +125,34 @@ class AppStorage {
     await p.setBool(_kLoggedIn, false);
   }
 
+  /// Returns a key suffix scoped to the current Firebase user (uid),
+  /// so that names stored by User A are never visible to User B.
+  static String _uidSuffix() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) return '_$uid';
+    return ''; // anonymous / not yet logged in — no suffix (safe fallback)
+  }
+
   static Future<void> saveProfile({
     required String firstName,
     required String lastName,
   }) async {
     final p = await SharedPreferences.getInstance();
-    await p.setString(_kFirstName, firstName);
-    await p.setString(_kLastName, lastName);
+    final s = _uidSuffix();
+    await p.setString('$_kFirstNamePrefix$s', firstName);
+    await p.setString('$_kLastNamePrefix$s', lastName);
   }
 
   static Future<String?> getFirstName() async {
     final p = await SharedPreferences.getInstance();
-    return p.getString(_kFirstName);
+    final s = _uidSuffix();
+    return p.getString('$_kFirstNamePrefix$s');
   }
 
   static Future<String?> getLastName() async {
     final p = await SharedPreferences.getInstance();
-    return p.getString(_kLastName);
+    final s = _uidSuffix();
+    return p.getString('$_kLastNamePrefix$s');
   }
 
   static Future<void> setUiLang(String lang) async {

@@ -251,8 +251,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
                     ),
                   ),
 
-                  // Horse — visible only before answer
-                  if (!_submitted) _tulparImage(),
+
                 ],
               ),
             ),

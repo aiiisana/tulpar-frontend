@@ -4,6 +4,7 @@ import '../../widgets/progress_header.dart';
 import '../../widgets/select_pill.dart';
 import 'daily_goal_screen.dart';
 import '../../app/app_storage.dart';
+import '../../services/profile_service.dart';
 
 class ChooseLevelScreen extends StatefulWidget {
   const ChooseLevelScreen({super.key});
@@ -14,6 +15,14 @@ class ChooseLevelScreen extends StatefulWidget {
 
 class _ChooseLevelScreenState extends State<ChooseLevelScreen> {
   String? selected;
+
+  static String _levelToApi(String uiLevel) => switch (uiLevel) {
+        'Начинающий'   => 'BEGINNER',
+        'Элементарный' => 'ELEMENTARY',
+        'Средний'      => 'INTERMEDIATE',
+        'Продвинутый'  => 'ADVANCED',
+        _              => 'BEGINNER',
+      };
 
   void _next() {
     if (selected == null) return;
@@ -66,6 +75,11 @@ class _ChooseLevelScreenState extends State<ChooseLevelScreen> {
                       onTap: () async {
                         setState(() => selected = lvl);
                         await AppStorage.setLevel(lvl);
+                        // Send to backend immediately so the course map
+                        // loads correctly when the user reaches HomeShell.
+                        ProfileService.updateLevel(
+                          _levelToApi(lvl),
+                        ).ignore();
                       },
                     );
                   },

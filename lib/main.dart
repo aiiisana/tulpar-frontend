@@ -13,7 +13,6 @@ import 'services/push_notification_service.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  debugPrint('[Push] Background message: ${message.notification?.title}');
 }
 
 Future<void> main() async {
