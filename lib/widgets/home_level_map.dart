@@ -18,6 +18,12 @@ const double _kNodeStep = 130.0;
 const double _kFirstY = 68.0;
 const double _kBottomMargin = 80.0;
 
+// ── Background constants ──────────────────────────────────────────────────────
+
+const double _kBgBlockHeight = 400.0;
+const String _kBg1 = 'assets/images/background.png';
+const String _kBg2 = 'assets/images/background-2.png';
+
 // ── Load result ───────────────────────────────────────────────────────────────
 
 class _LoadResult {
@@ -485,58 +491,67 @@ class HomeLevelMapState extends State<HomeLevelMap> {
     final n = _lessons.length;
     final pts = _centers(n);
     final canvasH = _canvasHeight(n);
+    final totalH = canvasH + kMapCanvasPadding * 2;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: Container(
         height: 380,
-        decoration: BoxDecoration(color: AppTheme.background),
+        decoration: const BoxDecoration(color: AppTheme.background),
         child: SingleChildScrollView(
           physics: const ClampingScrollPhysics(),
           child: SizedBox(
             width: double.infinity,
-            height: canvasH + kMapCanvasPadding * 2,
-            child: Center(
-              child: SizedBox(
-                width: kLevelMapWidth,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      top: kMapCanvasPadding,
-                      width: kLevelMapWidth,
-                      height: canvasH,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          CustomPaint(
-                            size: Size(kLevelMapWidth, canvasH),
-                            painter: _LevelPathPainter(
-                              points: pts,
-                              lessons: _lessons,
-                              horseRight: _horseRight,
-                              horseLeft: _horseLeft,
-                            ),
-                          ),
-                          for (var i = 0; i < _lessons.length; i++)
-                            Positioned(
-                              left: pts[i].dx - half,
-                              top: pts[i].dy - half,
-                              width: nodeSize,
-                              height: nodeSize,
-                              child: _NodeBubble(
-                                lesson: _lessons[i],
-                                index: i,
-                                onTap: () => _onNodeTap(_lessons[i]),
+            height: totalH,
+            child: Stack(
+              children: [
+                // ── Repeating background ─────────────────────────────────
+                _RepeatingBackground(totalHeight: totalH),
+
+                // ── Level map content ────────────────────────────────────
+                Center(
+                  child: SizedBox(
+                    width: kLevelMapWidth,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: kMapCanvasPadding,
+                          width: kLevelMapWidth,
+                          height: canvasH,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              CustomPaint(
+                                size: Size(kLevelMapWidth, canvasH),
+                                painter: _LevelPathPainter(
+                                  points: pts,
+                                  lessons: _lessons,
+                                  horseRight: _horseRight,
+                                  horseLeft: _horseLeft,
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
+                              for (var i = 0; i < _lessons.length; i++)
+                                Positioned(
+                                  left: pts[i].dx - half,
+                                  top: pts[i].dy - half,
+                                  width: nodeSize,
+                                  height: nodeSize,
+                                  child: _NodeBubble(
+                                    lesson: _lessons[i],
+                                    index: i,
+                                    onTap: () => _onNodeTap(_lessons[i]),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -545,6 +560,36 @@ class HomeLevelMapState extends State<HomeLevelMap> {
   }
 }
 
+// ── Repeating background ──────────────────────────────────────────────────────
+
+class _RepeatingBackground extends StatelessWidget {
+  final double totalHeight;
+
+  const _RepeatingBackground({required this.totalHeight});
+
+  @override
+  Widget build(BuildContext context) {
+    final int count = (totalHeight / _kBgBlockHeight).ceil() + 1;
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: count,
+      itemBuilder: (_, i) {
+        final bool isEven = i.isEven;
+        return SizedBox(
+          height: _kBgBlockHeight,
+          width: double.infinity,
+          child: Image.asset(
+            isEven ? _kBg2 : _kBg1,
+            scale: 1.5,
+            repeat: ImageRepeat.noRepeat,
+            alignment: isEven ? Alignment.centerLeft : Alignment.centerRight,
+          ),
+        );
+      },
+    );
+  }
+}
 // ── Пузырёк урока ─────────────────────────────────────────────────────────────
 
 class _NodeBubble extends StatelessWidget {
